@@ -1,0 +1,58 @@
+from app.services import audit
+from app.services.appointments import (
+    AppointmentConflictError,
+    AppointmentNotFoundError,
+    cancel_appointment,
+    create_appointment,
+    get_appointment,
+    list_appointments,
+    update_appointment,
+)
+from app.services.auth import (
+    AuthenticationError,
+    RefreshTokenError,
+    authenticate_user,
+    create_tokens_for_user,
+    ensure_seed_data,
+    revoke_refresh_token,
+    rotate_refresh_token,
+)
+from app.services.background import start_background_services, stop_background_services
+from app.services.patients import (
+    PatientConflictError,
+    PatientNotFoundError,
+    archive_patient,
+    create_patient,
+    get_patient,
+    list_patients,
+    patch_patient,
+    update_patient,
+)
+
+__all__ = [
+    "audit",
+    "AuthenticationError",
+    "RefreshTokenError",
+    "PatientNotFoundError",
+    "PatientConflictError",
+    "AppointmentNotFoundError",
+    "AppointmentConflictError",
+    "authenticate_user",
+    "create_tokens_for_user",
+    "ensure_seed_data",
+    "revoke_refresh_token",
+    "rotate_refresh_token",
+    "create_patient",
+    "update_patient",
+    "patch_patient",
+    "archive_patient",
+    "get_patient",
+    "list_patients",
+    "create_appointment",
+    "update_appointment",
+    "cancel_appointment",
+    "get_appointment",
+    "list_appointments",
+    "start_background_services",
+    "stop_background_services",
+]
