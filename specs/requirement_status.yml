@@ -1,0 +1,17 @@
+# Requirement status overrides.
+# Possible values: todo, in_progress, blocked, done.
+# Entries omitted from this file default to "todo" when rendered via tools/spec_loader.py.
+# Update entries to "done" once the implementation and tests satisfy the CSV requirement.
+REQ-F-REG-001: done
+REQ-F-REG-002: done
+REQ-F-REG-003: done
+REQ-F-REG-004: done
+REQ-F-REG-005: done
+REQ-F-APPT-001: done
+REQ-F-APPT-003: done
+REQ-F-ADM-001: done
+REQ-NF-SEC-001: done
+REQ-NF-SEC-002: done
+REQ-NF-SEC-003: done
+REQ-NF-LEGAL-002: done
+REQ-NF-ARCH-001: done
