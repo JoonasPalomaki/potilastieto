@@ -30,3 +30,20 @@ from app.schemas.patient import (
     PatientSummary,
     PatientUpdate,
 )
+from app.schemas.clinical import (
+    ClinicalNoteCreate,
+    ClinicalNoteRead,
+    ClinicalNoteUpdate,
+    InvoiceCreate,
+    InvoiceRead,
+    InvoiceUpdate,
+    LabResultCreate,
+    LabResultRead,
+    LabResultUpdate,
+    OrderCreate,
+    OrderRead,
+    OrderUpdate,
+    VisitCreate,
+    VisitRead,
+    VisitUpdate,
+)

@@ -34,7 +34,7 @@ The solution is split into independently testable layers to keep the system ligh
 - **Frontend (React + Vite + TypeScript + Tailwind)**: Implements role-specific UI flows for patient registration, appointment scheduling, audit review, and authentication. Communicates exclusively through the REST API.
 - **Backend API (FastAPI + SQLModel)**: Hosts the HTTP interface, request validation, and OpenAPI metadata. Routes delegate to service layer functions.
 - **Service Layer**: Encapsulates domain logic such as patient lifecycle management, appointment rules (reschedule, cancel), audit creation, and permission checks.
-- **Persistence Layer (SQLite via SQLModel/SQLAlchemy)**: Defines ORM models and migrations. Provides repository-style abstractions to the service layer.
+- **Persistence Layer (SQLite via SQLModel/SQLAlchemy + Alembic)**: Defines ORM models, manages schema migrations, and provides repository-style abstractions to the service layer.
 - **Auth & Security Module**: Manages user accounts, password hashing, JWT creation/refresh (`REQ-NF-SEC-001`), and role-based authorization (`REQ-NF-SEC-002`).
 - **Audit Logging Module**: Records every read or mutation of patient-related entities (`REQ-NF-SEC-003`) and exposes filters for compliance review. Stores immutable AuditEvent rows linked to the resource and actor.
 - **Background Tasks (optional)**: Lightweight scheduler for cleanup (e.g., archiving), kept minimal to preserve local deployability (`REQ-NF-ARCH-001`).
@@ -53,8 +53,13 @@ All components run on a single workstation. The backend exposes HTTP on `localho
 | PatientContact | `id`, `patient_id`, `name`, `relationship`, `phone`, `email`, `is_guardian` | Emergency contacts and guardians (`REQ-F-REG-004`).
 | Consent | `id`, `patient_id`, `type`, `status`, `granted_at`, `revoked_at`, `notes` | Captures patient consents and their history (`REQ-F-REG-003`).
 | PatientHistory | `id`, `patient_id`, `changed_by`, `change_type`, `snapshot`, `changed_at` | Immutable change log for patient updates to meet audit and history expectations (`REQ-F-REG-002`, `REQ-NF-SEC-003`).
-| Appointment | `id`, `patient_id`, `provider_id`, `location`, `service_type`, `start_time`, `end_time`, `status`, `notes`, `created_by` | Satisfies scheduling and rescheduling requirements (`REQ-F-APPT-001`, `REQ-F-APPT-003`).
-| AppointmentSlot | `id`, `provider_id`, `start_time`, `end_time`, `capacity`, `status` | Optional representation of bookable time slots for resource management.
+| Appointment | `id`, `patient_id`, `provider_id`, `location`, `service_type`, `start_time`, `end_time`, `status`, `notes`, `created_by` | Satisfies scheduling and rescheduling requirements (`REQ-F-APPT-001`, `REQ-F-APPT-003`). |
+| Visit | `id`, `patient_id`, `appointment_id`, `visit_type`, `status`, `reason`, `location`, `started_at`, `ended_at`, `attending_provider_id` | Clinical encounter linked to an appointment when applicable and used to aggregate downstream clinical documentation. |
+| ClinicalNote | `id`, `visit_id`, `patient_id`, `author_id`, `note_type`, `title`, `content` | Progress notes and encounter narratives captured during a visit. |
+| Order | `id`, `visit_id`, `patient_id`, `ordered_by_id`, `order_type`, `status`, `details`, `placed_at` | Medication, lab, or procedure orders initiated from a visit. |
+| LabResult | `id`, `order_id`, `result_type`, `status`, `value`, `unit`, `reference_range`, `observed_at`, `metadata` | Structured observations generated from fulfilled orders. |
+| Invoice | `id`, `patient_id`, `visit_id`, `total_amount`, `currency`, `status`, `issued_at`, `due_at`, `metadata` | Billing artifact summarising visit charges for revenue tracking. |
+| AppointmentSlot | `id`, `provider_id`, `start_time`, `end_time`, `capacity`, `status` | Optional representation of bookable time slots for resource management. |
 | User | `id`, `username`, `password_hash`, `display_name`, `role_id`, `is_active` | Clinical or admin users (`REQ-F-ADM-001`).
 | Role | `id`, `code`, `name`, `permissions` | Role definitions for doctor, nurse, admin.
 | AuditEvent | `id`, `actor_id`, `action`, `resource_type`, `resource_id`, `timestamp`, `metadata`, `context` | Captures every read/write of patient data (`REQ-NF-SEC-003`).
@@ -68,12 +73,20 @@ erDiagram
     Patient ||--o{ Consent : grants
     Patient ||--o{ PatientHistory : "change snapshots"
     Patient ||--o{ Appointment : books
+    Appointment ||--o{ Visit : "initiates"
+    Patient ||--o{ Visit : attends
+    Visit ||--o{ ClinicalNote : documents
+    Visit ||--o{ Order : generates
+    Order ||--o{ LabResult : results
+    Visit ||--o{ Invoice : bills
     Appointment }o--|| User : "assigned to"
     Appointment }o--|| AppointmentSlot : "consumes"
     User }o--|| Role : "belongs to"
     AuditEvent }o--|| User : "performed by"
     AuditEvent }o--|| Patient : "references when patient data touched"
     AuditEvent }o--|| Appointment : "references when appointment accessed"
+    AuditEvent }o--|| Visit : "references when visit accessed"
+    AuditEvent }o--|| ClinicalNote : "references note activity"
 ```
 
 - Patient removal (`REQ-F-REG-005`) triggers archival flags rather than hard deletes to respect `REQ-NF-LEGAL-002`.
@@ -137,3 +150,9 @@ sequenceDiagram
 - **Audit coverage**: Service layer automatically records read/write access to patient-linked resources (`REQ-NF-SEC-003`).
 - **Privacy by design**: Data minimisation is achieved by storing only necessary PII and enabling selective archival (`REQ-NF-LEGAL-001`, `REQ-NF-LEGAL-002`).
 - **Local-first install**: All dependencies remain local-friendly and run via simple commands (`REQ-NF-ARCH-001`). Future migrations to PostgreSQL are facilitated by SQLModel compatibility.
+
+## Migration Workflow
+
+- Alembic migration scripts live in `backend/app/db/migrations/` and define the authoritative schema history.
+- The application bootstrap (`init_db`) now calls `alembic upgrade head` to ensure the runtime database matches the latest revision.
+- Every schema change must add a new Alembic revision and update the ERD to remain consistent with persisted relationships.
