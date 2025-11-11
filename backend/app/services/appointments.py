@@ -19,6 +19,7 @@ from app.schemas.appointment import (
     AvailabilitySlot,
 )
 from app.services import audit
+from app.services.audit_policy import ensure_appointment_metadata, make_patient_reference
 from app.services.notifications import (
     notify_appointment_cancelled,
     notify_appointment_created,
@@ -133,12 +134,14 @@ def _appointment_list_audit_metadata(
     metadata: Dict[str, object] = {
         "page": params.get("page", 1),
         "page_size": params.get("page_size", 25),
-        "patient_id": params.get("patient_id"),
         "provider_id": params.get("provider_id"),
         "status": params.get("status"),
         "returned": len(items),
         "total": total,
     }
+    patient_id = params.get("patient_id")
+    if patient_id is not None:
+        metadata["patient_ref"] = make_patient_reference(int(patient_id))
     start_from = params.get("start_from")
     end_to = params.get("end_to")
     if isinstance(start_from, datetime):
@@ -392,7 +395,7 @@ def create_appointment(
         action="appointment.create",
         resource_type="appointment",
         resource_id=str(appointment.id),
-        metadata={"patient_id": appointment.patient_id},
+        metadata=ensure_appointment_metadata(patient_id=appointment.patient_id),
         context=context or {},
     )
 
@@ -450,7 +453,7 @@ def update_appointment(
         action="appointment.update",
         resource_type="appointment",
         resource_id=str(appointment.id),
-        metadata={"patient_id": appointment.patient_id},
+        metadata=ensure_appointment_metadata(patient_id=appointment.patient_id),
         context=context or {},
     )
 
@@ -549,12 +552,12 @@ def reschedule_appointment(
         action="appointment.reschedule",
         resource_type="appointment",
         resource_id=str(appointment.id),
-        metadata={
-            "patient_id": appointment.patient_id,
-            "previous_start": previous_start.isoformat(),
-            "previous_end": previous_end.isoformat(),
-            "reason": data.reason,
-        },
+        metadata=ensure_appointment_metadata(
+            patient_id=appointment.patient_id,
+            previous_start=previous_start.isoformat(),
+            previous_end=previous_end.isoformat(),
+            reason=data.reason,
+        ),
         context=context or {},
     )
 
@@ -597,7 +600,11 @@ def cancel_appointment(
         action="appointment.cancel",
         resource_type="appointment",
         resource_id=str(appointment.id),
-        metadata={"patient_id": appointment.patient_id, "notify": request.notify_patient},
+        metadata=ensure_appointment_metadata(
+            patient_id=appointment.patient_id,
+            reason=request.reason,
+            notify=request.notify_patient,
+        ),
         context=context or {},
     )
 

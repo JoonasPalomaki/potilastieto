@@ -7,6 +7,7 @@ from typing import Any, Callable, Dict, Iterable, Optional, Tuple
 from sqlmodel import Session, func, select
 
 from app.models import AuditEvent
+from app.services.audit_policy import sanitize_metadata
 
 
 def record_event(
@@ -24,7 +25,7 @@ def record_event(
         action=action,
         resource_type=resource_type,
         resource_id=resource_id,
-        metadata_json=metadata or {},
+        metadata_json=sanitize_metadata(resource_type, action, metadata),
         context=context or {},
         timestamp=datetime.utcnow(),
     )

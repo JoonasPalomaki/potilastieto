@@ -10,7 +10,8 @@ from sqlmodel import Session, select
 from app.db.session import engine, init_db
 from app.models import Appointment, AuditEvent, Role, User
 from app.schemas import PatientCreate
-from app.services import create_patient, get_patient, list_appointments
+from app.services import audit, create_patient, get_patient, list_appointments
+from app.services.audit_policy import hash_identifier, make_patient_reference
 
 
 @pytest.fixture
@@ -158,4 +159,63 @@ def test_list_appointments_logs_all_items(session: Session) -> None:
         assert event.actor_id == doctor.id
         assert event.context.get("request_id") == "list-test"
         assert event.metadata_json.get("result_count") == len(appointments)
-        assert event.metadata_json.get("patient_id") == patient.id
+        assert event.metadata_json.get("patient_ref") == make_patient_reference(patient.id)
+
+
+def test_patient_audit_metadata_uses_hashed_identifier(session: Session) -> None:
+    doctor = _create_user(session, "doctor", "doctor-meta")
+    patient = create_patient(
+        session,
+        data=PatientCreate(
+            identifier="131052-308T",
+            first_name="Meta",
+            last_name="Audit",
+        ),
+        actor_id=doctor.id,
+        context={},
+    )
+
+    events = session.exec(
+        select(AuditEvent)
+        .where(
+            AuditEvent.action == "patient.create",
+            AuditEvent.resource_type == "patient",
+            AuditEvent.resource_id == str(patient.id),
+        )
+        .order_by(AuditEvent.timestamp)
+    ).all()
+    assert events
+    identifier_tokens = {event.metadata_json.get("identifier_token") for event in events}
+    expected_token = hash_identifier(patient.identifier)
+    assert expected_token in identifier_tokens
+    assert patient.identifier not in identifier_tokens
+
+
+def test_audit_rejects_direct_hetu_metadata(session: Session) -> None:
+    doctor = _create_user(session, "doctor", "doctor-hetu")
+
+    with pytest.raises(ValueError):
+        audit.record_event(
+            session,
+            actor_id=doctor.id,
+            action="patient.test",
+            resource_type="patient",
+            resource_id="1",
+            metadata={"identifier": "131052-308T"},
+            context={},
+        )
+
+
+def test_audit_rejects_unapproved_metadata_key(session: Session) -> None:
+    doctor = _create_user(session, "doctor", "doctor-unexpected")
+
+    with pytest.raises(ValueError):
+        audit.record_event(
+            session,
+            actor_id=doctor.id,
+            action="patient.test",
+            resource_type="patient",
+            resource_id="1",
+            metadata={"unexpected": "value"},
+            context={},
+        )

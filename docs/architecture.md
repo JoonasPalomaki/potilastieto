@@ -37,6 +37,7 @@ The solution is split into independently testable layers to keep the system ligh
 - **Persistence Layer (SQLite via SQLModel/SQLAlchemy + Alembic)**: Defines ORM models, manages schema migrations, and provides repository-style abstractions to the service layer.
 - **Auth & Security Module**: Manages user accounts, password hashing, JWT creation/refresh (`REQ-NF-SEC-001`), and role-based authorization (`REQ-NF-SEC-002`).
 - **Audit Logging Module**: Records every read or mutation of patient-related entities (`REQ-NF-SEC-003`) and exposes filters for compliance review. Stores immutable AuditEvent rows linked to the resource and actor.
+- **Audit Metadata Policy**: `app.services.audit_policy` centralises the allow-list for audit metadata keys and enforces hashing of personal identifiers with a secret salt. `patient_ref`, `identifier_token`, `source_patient_ref`, and other domain-specific keys provide opaque references while preventing raw hetu values from being persisted (`REQ-NF-LEGAL-001`).
 - **Background Tasks (optional)**: Lightweight scheduler for cleanup (e.g., archiving), kept minimal to preserve local deployability (`REQ-NF-ARCH-001`).
 
 ### Deployment Topology
@@ -148,7 +149,7 @@ sequenceDiagram
 
 - **Role enforcement**: Backend routes check JWT claims for doctor, nurse, or admin roles before granting access (`REQ-F-ADM-001`, `REQ-NF-SEC-002`).
 - **Audit coverage**: Service layer automatically records read/write access to patient-linked resources (`REQ-NF-SEC-003`).
-- **Privacy by design**: Data minimisation is achieved by storing only necessary PII and enabling selective archival (`REQ-NF-LEGAL-001`, `REQ-NF-LEGAL-002`).
+- **Privacy by design**: Data minimisation is achieved by storing only necessary PII and enabling selective archival. Audit metadata stores hashed tokens instead of raw hetu values, and the redaction script `tools/redact_audit_metadata.py` cleans existing rows to comply with `REQ-NF-LEGAL-001` and `REQ-NF-LEGAL-002`.
 - **Local-first install**: All dependencies remain local-friendly and run via simple commands (`REQ-NF-ARCH-001`). Future migrations to PostgreSQL are facilitated by SQLModel compatibility.
 
 ## Migration Workflow

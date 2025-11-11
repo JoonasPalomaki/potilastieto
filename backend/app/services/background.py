@@ -10,6 +10,7 @@ from app.core.config import settings
 from app.db.session import get_session
 from app.models import Appointment, AppointmentStatusHistory, RefreshToken
 from app.services import audit
+from app.services.audit_policy import ensure_appointment_metadata
 
 
 class BackgroundService:
@@ -72,7 +73,7 @@ class BackgroundService:
                     action="appointment.complete",
                     resource_type="appointment",
                     resource_id=str(appointment.id),
-                    metadata={"auto": True},
+                    metadata=ensure_appointment_metadata(auto=True),
                     context={"source": "background"},
                 )
 

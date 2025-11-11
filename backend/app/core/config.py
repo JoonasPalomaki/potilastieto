@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     background_cleanup_interval_seconds: int = 60 * 30  # every 30 minutes
     first_superuser: str = "admin"
     first_superuser_password: str = "admin123"
+    audit_hash_secret: str = Field(
+        default="audit-secret",
+        description="Secret used to generate opaque tokens for audit metadata",
+    )
 
     class Config:
         env_file = ".env"
