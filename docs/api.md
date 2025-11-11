@@ -5,7 +5,7 @@ The REST API follows JSON over HTTPS (HTTP for local development) and aligns wit
 ## Common Conventions
 
 - **Authentication**: Bearer JWT tokens obtained via `/api/v1/auth/login`. Refresh tokens rotate via `/api/v1/auth/refresh` (`REQ-NF-SEC-001`).
-- **Authorization**: Role-based access control enforced per route (doctor, nurse, admin) (`REQ-F-ADM-001`, `REQ-NF-SEC-002`).
+- **Authorization**: Role-based access control enforced per route (doctor, nurse, billing, admin) (`REQ-F-ADM-001`, `REQ-NF-SEC-002`).
 - **Audit Logging**: Every read or write to patient or appointment data records an `AuditEvent` with actor, timestamp, resource, and action (`REQ-NF-SEC-003`).
 - **Pagination**: List endpoints accept `page` (default 1) and `page_size` (default 25, max 100).
 - **Filtering**: Standard query parameters such as `search`, `status`, `start_date`, `end_date` are optional filters noted per resource.
@@ -13,9 +13,11 @@ The REST API follows JSON over HTTPS (HTTP for local development) and aligns wit
 
 ## `/api/v1/patients`
 
+Billing users have read-only access to patient data (list and detail). Write operations remain limited to clinical roles, while merges and archival continue to require admin permissions (`REQ-F-REG-002`).
+
 ### GET `/api/v1/patients`
 - **Description**: List patients with optional filtering by `search` (name, identifier) and `status` (`active`, `archived`).
-- **Roles**: doctor, nurse, admin.
+- **Roles**: doctor, nurse, billing, admin.
 - **Responses**:
   - `200 OK`: `{ "items": [PatientSummary], "page": 1, "page_size": 25, "total": 2 }`.
 
@@ -53,7 +55,7 @@ The REST API follows JSON over HTTPS (HTTP for local development) and aligns wit
 
 ### GET `/api/v1/patients/{patient_id}`
 - **Description**: Fetch patient details with history pointers (`REQ-F-REG-002`).
-- **Roles**: doctor, nurse, admin.
+- **Roles**: doctor, nurse, billing, admin.
 - **Responses**:
   - `200 OK`: `PatientDetail` with embedded consents, contacts, latest history entry id.
   - `404 Not Found`: Invalid patient id or archived without admin role.

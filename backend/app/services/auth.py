@@ -100,6 +100,10 @@ def ensure_seed_data(session: Session) -> None:
             "name": "Hoitaja",
             "permissions": ["patients:read", "patients:write", "appointments:write"],
         },
+        "billing": {
+            "name": "Laskutus",
+            "permissions": ["patients:read"],
+        },
         "admin": {
             "name": "Ylläpitäjä",
             "permissions": [
