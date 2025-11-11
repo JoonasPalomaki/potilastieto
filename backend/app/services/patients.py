@@ -56,6 +56,20 @@ class PatientIdentifierLockedError(Exception):
         self.message = message
 
 
+class PatientArchivedError(Exception):
+    def __init__(self, message: str = "Potilas on arkistoitu", *, code: str = "PATIENT_ARCHIVED") -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
+
+
+class PatientNotArchivedError(Exception):
+    def __init__(self, message: str = "Potilas ei ole arkistoitu", *, code: str = "PATIENT_NOT_ARCHIVED") -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
+
+
 def _to_contact_info(data: Optional[dict]) -> Optional[ContactInfo]:
     if not data:
         return None
@@ -492,6 +506,8 @@ def update_patient(
     patient = session.get(Patient, patient_id)
     if not patient:
         raise PatientNotFoundError
+    if patient.status == "archived":
+        raise PatientArchivedError()
 
     duplicates = _find_duplicate_patients(
         session,
@@ -562,6 +578,8 @@ def patch_patient(
     patient = session.get(Patient, patient_id)
     if not patient:
         raise PatientNotFoundError
+    if patient.status == "archived":
+        raise PatientArchivedError()
 
     identifier = data.identifier if data.identifier is not None else patient.identifier
     date_of_birth = data.date_of_birth if data.date_of_birth is not None else patient.date_of_birth
@@ -638,12 +656,18 @@ def archive_patient(
     *,
     patient_id: int,
     actor_id: Optional[int],
-    reason: Optional[str] = None,
+    reason: str,
     context: Optional[dict] = None,
 ) -> None:
     patient = session.get(Patient, patient_id)
     if not patient:
         raise PatientNotFoundError
+    if patient.status == "archived":
+        raise PatientArchivedError("Potilas on jo arkistoitu")
+
+    normalized_reason = reason.strip()
+    if not normalized_reason:
+        raise ValueError("Arkistoinnin syy puuttuu")
     patient.status = "archived"
     patient.archived_at = datetime.utcnow()
     patient.updated_at = datetime.utcnow()
@@ -653,7 +677,7 @@ def archive_patient(
         changed_by=actor_id,
         change_type="archive",
         snapshot=patient.model_dump(mode="json"),
-        reason=reason or "Arkistointi",
+        reason=normalized_reason,
     )
     session.add(history_entry)
 
@@ -663,8 +687,54 @@ def archive_patient(
         action="patient.archive",
         resource_type="patient",
         resource_id=str(patient.id),
-        metadata={"identifier": patient.identifier},
+        metadata={"identifier": patient.identifier, "reason": normalized_reason},
         context=context or {},
     )
 
     session.commit()
+
+
+def restore_patient(
+    session: Session,
+    *,
+    patient_id: int,
+    actor_id: Optional[int],
+    reason: str,
+    context: Optional[dict] = None,
+) -> PatientRead:
+    patient = session.get(Patient, patient_id)
+    if not patient:
+        raise PatientNotFoundError
+    if patient.status != "archived":
+        raise PatientNotArchivedError()
+
+    normalized_reason = reason.strip()
+    if not normalized_reason:
+        raise ValueError("Palautuksen syy puuttuu")
+
+    patient.status = "active"
+    patient.archived_at = None
+    patient.updated_at = datetime.utcnow()
+
+    history_entry = PatientHistory(
+        patient_id=patient.id,
+        changed_by=actor_id,
+        change_type="restore",
+        snapshot=patient.model_dump(mode="json"),
+        reason=normalized_reason,
+    )
+    session.add(history_entry)
+
+    audit.record_event(
+        session,
+        actor_id=actor_id,
+        action="patient.restore",
+        resource_type="patient",
+        resource_id=str(patient.id),
+        metadata={"identifier": patient.identifier, "reason": normalized_reason},
+        context=context or {},
+    )
+
+    session.commit()
+    session.refresh(patient)
+    return _build_patient_read(session, patient)

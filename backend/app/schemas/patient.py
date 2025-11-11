@@ -235,3 +235,47 @@ class PatientSummary(BaseModel):
 
 class PatientMergeRequest(BaseModel):
     source_patient_id: int
+
+
+class PatientArchiveRequest(BaseModel):
+    reason: str = Field(..., min_length=1, max_length=255)
+
+    @model_validator(mode="after")
+    def _normalize_reason(self) -> "PatientArchiveRequest":
+        normalized = self.reason.strip()
+        if not normalized:
+            raise ValidationError.from_exception_data(
+                type(self).__name__,
+                [
+                    {
+                        "type": "missing",
+                        "loc": ("reason",),
+                        "msg": "perustelu on pakollinen",
+                        "input": self.reason,
+                    }
+                ],
+            )
+        self.reason = normalized
+        return self
+
+
+class PatientRestoreRequest(BaseModel):
+    reason: str = Field(..., min_length=1, max_length=255)
+
+    @model_validator(mode="after")
+    def _normalize_reason(self) -> "PatientRestoreRequest":
+        normalized = self.reason.strip()
+        if not normalized:
+            raise ValidationError.from_exception_data(
+                type(self).__name__,
+                [
+                    {
+                        "type": "missing",
+                        "loc": ("reason",),
+                        "msg": "perustelu on pakollinen",
+                        "input": self.reason,
+                    }
+                ],
+            )
+        self.reason = normalized
+        return self

@@ -5,19 +5,24 @@ from datetime import date
 import pytest
 from pydantic import ValidationError
 from sqlalchemy import text
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from app.db.session import engine, init_db
+from app.models import AuditEvent, Patient, PatientHistory
 from app.models.visit import Visit
 from app.schemas import ConsentCreate, PatientContactCreate, PatientCreate, PatientUpdate
 from app.services import (
     PatientConflictError,
+    PatientArchivedError,
     PatientIdentifierLockedError,
     PatientMergeError,
+    PatientNotArchivedError,
     PatientNotFoundError,
+    archive_patient,
     create_patient,
     patch_patient,
     merge_patients,
+    restore_patient,
     update_patient,
 )
 
@@ -26,6 +31,7 @@ from app.services import (
 def prepare_database() -> None:
     init_db()
     with Session(engine) as session:
+        session.exec(text("DELETE FROM audit_events"))
         session.exec(text("DELETE FROM lab_results"))
         session.exec(text("DELETE FROM orders"))
         session.exec(text("DELETE FROM clinical_notes"))
@@ -329,3 +335,127 @@ def test_patch_patient_blocks_identifier_change_with_dependents(session: Session
     )
 
     assert patched.identifier == "131052-302L"
+
+
+def test_update_patient_rejects_archived_records(session: Session) -> None:
+    patient = create_patient(
+        session,
+        data=PatientCreate(
+            identifier="131052-308T",
+            first_name="Arkistoitu",
+            last_name="Potilas",
+        ),
+        actor_id=1,
+        context={},
+    )
+
+    archive_patient(
+        session,
+        patient_id=patient.id,
+        actor_id=1,
+        reason="Arkistointi testia varten",
+        context={},
+    )
+
+    with pytest.raises(PatientArchivedError):
+        update_patient(
+            session,
+            patient_id=patient.id,
+            data=PatientCreate(
+                identifier="131052-308T",
+                first_name="Muokattu",
+                last_name="Potilas",
+            ),
+            actor_id=2,
+            actor_role="admin",
+            reason="Yritetty muokkaus",
+            context={},
+        )
+
+
+def test_patch_patient_rejects_archived_records(session: Session) -> None:
+    patient = create_patient(
+        session,
+        data=PatientCreate(
+            identifier="131052-309U",
+            first_name="Arkisto",
+            last_name="Muokkaus",
+        ),
+        actor_id=1,
+        context={},
+    )
+
+    archive_patient(
+        session,
+        patient_id=patient.id,
+        actor_id=1,
+        reason="Arkistointi ennen korjausta",
+        context={},
+    )
+
+    with pytest.raises(PatientArchivedError):
+        patch_patient(
+            session,
+            patient_id=patient.id,
+            data=PatientUpdate(first_name="Arkisto", last_name="Uusi"),
+            actor_id=2,
+            actor_role="admin",
+            context={},
+        )
+
+
+def test_restore_patient_reactivates_and_logs_reason(session: Session) -> None:
+    patient = create_patient(
+        session,
+        data=PatientCreate(
+            first_name="Palautus",
+            last_name="Testi",
+            date_of_birth=date(1980, 1, 1),
+            sex="female",
+        ),
+        actor_id=1,
+        context={},
+    )
+
+    archive_reason = "Asiakas poistui"
+    restore_reason = "Palautettu pyynnöstä"
+
+    archive_patient(
+        session,
+        patient_id=patient.id,
+        actor_id=1,
+        reason=archive_reason,
+        context={},
+    )
+
+    restored = restore_patient(
+        session,
+        patient_id=patient.id,
+        actor_id=2,
+        reason=restore_reason,
+        context={},
+    )
+
+    assert restored.status == "active"
+    assert restored.archived_at is None
+
+    history_rows = session.exec(
+        select(PatientHistory).where(PatientHistory.patient_id == patient.id).order_by(PatientHistory.changed_at)
+    ).all()
+    reasons = [(row.change_type, row.reason) for row in history_rows]
+    assert ("archive", archive_reason) in reasons
+    assert ("restore", restore_reason) in reasons
+
+    events = session.exec(
+        select(AuditEvent).where(
+            AuditEvent.resource_type == "patient",
+            AuditEvent.resource_id == str(patient.id),
+            AuditEvent.action.in_(["patient.archive", "patient.restore"]),
+        )
+    ).all()
+    recorded_reasons = {event.metadata_json.get("reason") for event in events}
+    assert {archive_reason, restore_reason}.issubset(recorded_reasons)
+
+    patient_row = session.get(Patient, patient.id)
+    assert patient_row is not None
+    assert patient_row.status == "active"
