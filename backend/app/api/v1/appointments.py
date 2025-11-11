@@ -37,7 +37,8 @@ def list_appointment_records(
     start_from: datetime | None = None,
     end_to: datetime | None = None,
     session: Session = Depends(get_db),
-    _: AuthenticatedUser = Depends(require_roles("doctor", "nurse", "admin")),
+    current: AuthenticatedUser = Depends(require_roles("doctor", "nurse", "admin")),
+    context: dict = Depends(get_audit_context),
 ) -> Pagination[AppointmentSummary]:
     items, total = list_appointments(
         session,
@@ -48,6 +49,8 @@ def list_appointment_records(
         status=status_filter,
         start_from=start_from,
         end_to=end_to,
+        audit_actor_id=current.user.id,
+        audit_context=context,
     )
     return Pagination[AppointmentSummary](items=items, page=page, page_size=page_size, total=total)
 
@@ -69,10 +72,16 @@ def create_appointment_record(
 def get_appointment_record(
     appointment_id: int,
     session: Session = Depends(get_db),
-    _: AuthenticatedUser = Depends(require_roles("doctor", "nurse", "admin")),
+    current: AuthenticatedUser = Depends(require_roles("doctor", "nurse", "admin")),
+    context: dict = Depends(get_audit_context),
 ) -> AppointmentRead:
     try:
-        return get_appointment(session, appointment_id)
+        return get_appointment(
+            session,
+            appointment_id,
+            audit_actor_id=current.user.id,
+            audit_context=context,
+        )
     except AppointmentNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ajanvarausta ei löydy") from exc
 
