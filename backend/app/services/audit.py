@@ -23,7 +23,7 @@ def record_event(
         action=action,
         resource_type=resource_type,
         resource_id=resource_id,
-        metadata=metadata or {},
+        metadata_json=metadata or {},
         context=context or {},
         timestamp=datetime.utcnow(),
     )

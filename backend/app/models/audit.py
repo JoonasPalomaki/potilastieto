@@ -17,12 +17,13 @@ class AuditEvent(TimestampMixin, table=True):
     action: str = Field(max_length=100)
     resource_type: str = Field(max_length=50)
     resource_id: Optional[str] = Field(default=None, index=True, max_length=100)
-    metadata: dict = Field(
+    metadata_json: dict = Field(
         default_factory=dict,
-        sa_column=Column(JSON, nullable=False, default=dict),
+        sa_column=Column("metadata", JSON, nullable=False, default=dict),
     )
     context: dict = Field(
         default_factory=dict,
         sa_column=Column(JSON, nullable=False, default=dict),
     )
     timestamp: datetime = Field(default_factory=datetime.utcnow, index=True)
+

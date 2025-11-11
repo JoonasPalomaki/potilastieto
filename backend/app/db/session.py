@@ -6,7 +6,8 @@ from typing import Iterator
 
 from alembic import command
 from alembic.config import Config
-from sqlmodel import Session, create_engine
+from alembic.script import ScriptDirectory
+from sqlmodel import SQLModel, Session, create_engine
 
 from app.core.config import settings
 
@@ -23,7 +24,21 @@ def get_alembic_config() -> Config:
 
 
 def init_db() -> None:
-    command.upgrade(get_alembic_config(), "head")
+    config = get_alembic_config()
+    command.upgrade(config, "head")
+    SQLModel.metadata.create_all(engine)
+    script = ScriptDirectory.from_config(config)
+    head_revision = script.get_current_head()
+    if head_revision:
+        with engine.begin() as connection:
+            connection.exec_driver_sql(
+                "CREATE TABLE IF NOT EXISTS alembic_version (version_num VARCHAR(32) NOT NULL)"
+            )
+            connection.exec_driver_sql("DELETE FROM alembic_version")
+            connection.exec_driver_sql(
+                "INSERT INTO alembic_version (version_num) VALUES (?)",
+                (head_revision,),
+            )
 
 
 @contextmanager

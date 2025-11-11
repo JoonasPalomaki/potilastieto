@@ -49,7 +49,7 @@ The REST API follows JSON over HTTPS (HTTP for local development) and aligns wit
   ```
 - **Responses**:
   - `201 Created`: Returns full `PatientDetail` including generated `id`, `created_at`, `updated_at`.
-  - `409 Conflict`: Duplicate identifier.
+  - `409 Conflict`: Duplicate identifier or demographics. Returns `{ "detail": "Potilas on jo olemassa", "code": "PATIENT_DUPLICATE", "matches": [{"match_type": "identifier", "patient": {...}}] }`.
 
 ### GET `/api/v1/patients/{patient_id}`
 - **Description**: Fetch patient details with history pointers (`REQ-F-REG-002`).
@@ -68,6 +68,20 @@ The REST API follows JSON over HTTPS (HTTP for local development) and aligns wit
 ### PATCH `/api/v1/patients/{patient_id}`
 - **Description**: Partial update for status, contact info, or consent toggles. Records `PatientHistory` and `AuditEvent`.
 - **Roles**: nurse, doctor, admin.
+
+### POST `/api/v1/patients/{patient_id}/merge`
+- **Description**: Merge duplicate patient records by consolidating consents, contacts, and history entries into the target (`REQ-F-REG-001`). The source record is archived and its identifier released.
+- **Roles**: admin.
+- **Request Body**:
+  ```json
+  {
+    "source_patient_id": 42
+  }
+  ```
+- **Responses**:
+  - `200 OK`: Updated `PatientDetail` for the surviving patient including merged relationships.
+  - `400 Bad Request`: `{ "detail": "Lähde- ja kohdepotilas ovat samat", "code": "MERGE_SAME_PATIENT" }`.
+  - `404 Not Found`: Either patient id is invalid.
 
 ### DELETE `/api/v1/patients/{patient_id}`
 - **Description**: Archive a patient (soft delete) per `REQ-F-REG-005` and `REQ-NF-LEGAL-002`. Only admin role can execute.

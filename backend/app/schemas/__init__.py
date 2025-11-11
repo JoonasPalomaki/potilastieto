@@ -26,6 +26,7 @@ from app.schemas.patient import (
     PatientContactRead,
     PatientCreate,
     PatientHistoryRead,
+    PatientMergeRequest,
     PatientRead,
     PatientSummary,
     PatientUpdate,

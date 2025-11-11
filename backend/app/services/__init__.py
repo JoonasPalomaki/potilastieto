@@ -20,11 +20,13 @@ from app.services.auth import (
 from app.services.background import start_background_services, stop_background_services
 from app.services.patients import (
     PatientConflictError,
+    PatientMergeError,
     PatientNotFoundError,
     archive_patient,
     create_patient,
     get_patient,
     list_patients,
+    merge_patients,
     patch_patient,
     update_patient,
 )
@@ -34,6 +36,7 @@ __all__ = [
     "AuthenticationError",
     "RefreshTokenError",
     "PatientNotFoundError",
+    "PatientMergeError",
     "PatientConflictError",
     "AppointmentNotFoundError",
     "AppointmentConflictError",
@@ -45,6 +48,7 @@ __all__ = [
     "create_patient",
     "update_patient",
     "patch_patient",
+    "merge_patients",
     "archive_patient",
     "get_patient",
     "list_patients",
