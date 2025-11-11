@@ -2,10 +2,13 @@ from app.schemas.appointment import (
     AppointmentBase,
     AppointmentCancelRequest,
     AppointmentCreate,
+    AppointmentAvailability,
     AppointmentRead,
+    AppointmentRescheduleRequest,
     AppointmentStatusRead,
     AppointmentSummary,
     AppointmentUpdate,
+    AvailabilitySlot,
 )
 from app.schemas.audit import AuditEventRead, AuditQueryParams
 from app.schemas.auth import (

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Set, Tuple
 
 from sqlalchemy import and_, func
 from sqlmodel import Session, select
@@ -10,12 +10,20 @@ from app.models import Appointment, AppointmentStatusHistory
 from app.schemas.appointment import (
     AppointmentCancelRequest,
     AppointmentCreate,
+    AppointmentAvailability,
     AppointmentRead,
+    AppointmentRescheduleRequest,
     AppointmentStatusRead,
     AppointmentSummary,
     AppointmentUpdate,
+    AvailabilitySlot,
 )
 from app.services import audit
+from app.services.notifications import (
+    notify_appointment_cancelled,
+    notify_appointment_created,
+    notify_appointment_rescheduled,
+)
 
 
 class AppointmentNotFoundError(Exception):
@@ -23,7 +31,17 @@ class AppointmentNotFoundError(Exception):
 
 
 class AppointmentConflictError(Exception):
-    pass
+    def __init__(
+        self,
+        code: str,
+        *,
+        message: Optional[str] = None,
+        alternatives: Optional[List[AvailabilitySlot]] = None,
+    ) -> None:
+        super().__init__(message or code)
+        self.code = code
+        self.message = message or code
+        self.alternatives = alternatives or []
 
 
 def _build_appointment_read(session: Session, appointment: Appointment) -> AppointmentRead:
@@ -130,6 +148,159 @@ def _appointment_list_audit_metadata(
     return {key: value for key, value in metadata.items() if value is not None}
 
 
+def _merge_intervals(intervals: List[Tuple[datetime, datetime]]) -> List[Tuple[datetime, datetime]]:
+    if not intervals:
+        return []
+    sorted_intervals = sorted(intervals, key=lambda item: item[0])
+    merged: List[Tuple[datetime, datetime]] = [sorted_intervals[0]]
+    for current_start, current_end in sorted_intervals[1:]:
+        last_start, last_end = merged[-1]
+        if current_start <= last_end:
+            merged[-1] = (last_start, max(last_end, current_end))
+        else:
+            merged.append((current_start, current_end))
+    return merged
+
+
+def _chunk_interval(
+    start: datetime, end: datetime, slot_minutes: int
+) -> List[Tuple[datetime, datetime]]:
+    slots: List[Tuple[datetime, datetime]] = []
+    step = timedelta(minutes=slot_minutes)
+    current = start
+    while current + step <= end:
+        slots.append((current, current + step))
+        current += step
+    return slots
+
+
+def _generate_availability_slots(
+    *,
+    start_from: datetime,
+    end_to: datetime,
+    slot_minutes: int,
+    busy: List[Tuple[datetime, datetime]],
+) -> List[AvailabilitySlot]:
+    clamped = [
+        (
+            max(start_from, interval_start),
+            min(end_to, interval_end),
+        )
+        for interval_start, interval_end in busy
+        if interval_start < end_to and interval_end > start_from
+    ]
+    merged_busy = _merge_intervals(clamped)
+    pointer = start_from
+    slots: List[AvailabilitySlot] = []
+    for busy_start, busy_end in merged_busy:
+        if busy_start > pointer:
+            free_end = min(busy_start, end_to)
+            for chunk_start, chunk_end in _chunk_interval(pointer, free_end, slot_minutes):
+                slots.append(AvailabilitySlot(start_time=chunk_start, end_time=chunk_end))
+        pointer = max(pointer, busy_end)
+        if pointer >= end_to:
+            break
+    if pointer < end_to:
+        for chunk_start, chunk_end in _chunk_interval(pointer, end_to, slot_minutes):
+            slots.append(AvailabilitySlot(start_time=chunk_start, end_time=chunk_end))
+    return slots
+
+
+def _availability_audit_metadata(
+    result: List[AppointmentAvailability], params: Dict[str, object]
+) -> Dict[str, object]:
+    slot_count = sum(len(entry.slots) for entry in result)
+    metadata: Dict[str, object] = {
+        "provider_ids": params.get("provider_ids"),
+        "location": params.get("location"),
+        "slot_minutes": params.get("slot_minutes"),
+        "groups": len(result),
+        "slot_count": slot_count,
+    }
+    return {key: value for key, value in metadata.items() if value not in (None, [], {})}
+
+
+@audit.log_read(
+    resource_type="appointment",
+    many=True,
+    action="appointment.availability",
+    metadata_getter=_availability_audit_metadata,
+)
+def search_availability(
+    session: Session,
+    *,
+    start_from: datetime,
+    end_to: datetime,
+    provider_ids: Optional[List[int]] = None,
+    location: Optional[str] = None,
+    slot_minutes: int = 30,
+    exclude_appointment_id: Optional[int] = None,
+) -> List[AppointmentAvailability]:
+    if start_from >= end_to:
+        raise ValueError("start_from must be before end_to")
+    if slot_minutes <= 0:
+        raise ValueError("slot_minutes must be positive")
+
+    normalized_providers = [pid for pid in (provider_ids or []) if pid is not None]
+    if not normalized_providers:
+        raise ValueError("At least one provider_id must be supplied")
+
+    statement = select(Appointment).where(
+        Appointment.status != "cancelled",
+        Appointment.start_time < end_to,
+        Appointment.end_time > start_from,
+    )
+
+    statement = statement.where(Appointment.provider_id.in_(normalized_providers))
+
+    if location is not None:
+        statement = statement.where(Appointment.location == location)
+    if exclude_appointment_id is not None:
+        statement = statement.where(Appointment.id != exclude_appointment_id)
+
+    rows = session.exec(statement).all()
+
+    grouped: Dict[Tuple[int, Optional[str]], List[Tuple[datetime, datetime]]] = {}
+    for row in rows:
+        key = (row.provider_id, row.location)
+        grouped.setdefault(key, []).append((row.start_time, row.end_time))
+
+    keys: Set[Tuple[int, Optional[str]]] = set(grouped.keys())
+    if location is not None:
+        for provider_id in normalized_providers:
+            keys.add((provider_id, location))
+    else:
+        for provider_id in normalized_providers:
+            has_key = any(existing[0] == provider_id for existing in keys)
+            if not has_key:
+                keys.add((provider_id, None))
+
+    availability: List[AppointmentAvailability] = []
+    for provider_id, provider_location in sorted(keys, key=lambda item: (item[0], item[1] or "")):
+        if provider_location is None:
+            busy_intervals: List[Tuple[datetime, datetime]] = []
+            for existing_key, intervals in grouped.items():
+                if existing_key[0] == provider_id:
+                    busy_intervals.extend(intervals)
+        else:
+            busy_intervals = grouped.get((provider_id, provider_location), [])
+        slots = _generate_availability_slots(
+            start_from=start_from,
+            end_to=end_to,
+            slot_minutes=slot_minutes,
+            busy=busy_intervals,
+        )
+        availability.append(
+            AppointmentAvailability(
+                provider_id=provider_id,
+                location=provider_location,
+                slots=slots,
+            )
+        )
+
+    return availability
+
+
 @audit.log_read(
     resource_type="appointment",
     many=True,
@@ -227,6 +398,7 @@ def create_appointment(
 
     session.commit()
     session.refresh(appointment)
+    notify_appointment_created(session, appointment)
     return _build_appointment_read(session, appointment)
 
 
@@ -287,6 +459,119 @@ def update_appointment(
     return _build_appointment_read(session, appointment)
 
 
+def _collect_alternative_slots(
+    session: Session,
+    *,
+    appointment: Appointment,
+    desired_start: datetime,
+    desired_end: datetime,
+) -> List[AvailabilitySlot]:
+    slot_minutes = max(int((desired_end - desired_start).total_seconds() // 60), 1)
+    window_end = min(desired_start + timedelta(hours=8), desired_start + timedelta(days=1))
+    availabilities = search_availability(
+        session,
+        start_from=desired_start,
+        end_to=window_end,
+        provider_ids=[appointment.provider_id],
+        location=appointment.location,
+        slot_minutes=slot_minutes,
+        exclude_appointment_id=appointment.id,
+    )
+    slots: List[AvailabilitySlot] = []
+    for entry in availabilities:
+        slots.extend(entry.slots)
+        if len(slots) >= 5:
+            break
+    return slots[:5]
+
+
+def reschedule_appointment(
+    session: Session,
+    *,
+    appointment_id: int,
+    data: AppointmentRescheduleRequest,
+    actor_id: Optional[int],
+    context: Optional[dict] = None,
+) -> AppointmentRead:
+    appointment = session.get(Appointment, appointment_id)
+    if not appointment:
+        raise AppointmentNotFoundError
+
+    new_start = data.start_time
+    new_end = data.end_time
+    if new_start >= new_end:
+        raise AppointmentConflictError("INVALID_TIME_RANGE")
+
+    try:
+        _check_overlap(
+            session,
+            provider_id=appointment.provider_id,
+            start_time=new_start,
+            end_time=new_end,
+            exclude_id=appointment.id,
+        )
+    except AppointmentConflictError as exc:
+        alternatives = _collect_alternative_slots(
+            session,
+            appointment=appointment,
+            desired_start=new_start,
+            desired_end=new_end,
+        )
+        raise AppointmentConflictError(
+            exc.code,
+            message=str(exc),
+            alternatives=alternatives,
+        ) from exc
+
+    previous_start = appointment.start_time
+    previous_end = appointment.end_time
+
+    appointment.start_time = new_start
+    appointment.end_time = new_end
+    appointment.updated_at = datetime.utcnow()
+    appointment.status = "scheduled"
+
+    note_parts = [
+        f"from={previous_start.isoformat()}",
+        f"to={previous_end.isoformat()}",
+    ]
+    if appointment.location:
+        note_parts.append(f"location={appointment.location}")
+    if data.reason:
+        note_parts.append(f"reason={data.reason}")
+    note = "; ".join(note_parts)
+
+    _add_status_history(session, appointment.id, "rescheduled", actor_id, note)
+
+    audit.record_event(
+        session,
+        actor_id=actor_id,
+        action="appointment.reschedule",
+        resource_type="appointment",
+        resource_id=str(appointment.id),
+        metadata={
+            "patient_id": appointment.patient_id,
+            "previous_start": previous_start.isoformat(),
+            "previous_end": previous_end.isoformat(),
+            "reason": data.reason,
+        },
+        context=context or {},
+    )
+
+    session.commit()
+    session.refresh(appointment)
+
+    notify_appointment_rescheduled(
+        session,
+        appointment,
+        previous_start=previous_start.isoformat(),
+        previous_end=previous_end.isoformat(),
+        reason=data.reason,
+    )
+
+    return _build_appointment_read(session, appointment)
+
+
 def cancel_appointment(
     session: Session,
     *,
@@ -318,4 +603,10 @@ def cancel_appointment(
 
     session.commit()
     session.refresh(appointment)
+    if request.notify_patient:
+        notify_appointment_cancelled(
+            session,
+            appointment,
+            reason=request.reason,
+        )
     return _build_appointment_read(session, appointment)
