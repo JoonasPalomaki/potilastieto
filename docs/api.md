@@ -86,10 +86,30 @@ Billing users have read-only access to patient data (list and detail). Write ope
   - `404 Not Found`: Either patient id is invalid.
 
 ### DELETE `/api/v1/patients/{patient_id}`
-- **Description**: Archive a patient (soft delete) per `REQ-F-REG-005` and `REQ-NF-LEGAL-002`. Only admin role can execute.
+- **Description**: Archive a patient (soft delete) per `REQ-F-REG-005` and `REQ-NF-LEGAL-002`. Admins must supply an audit reason that is persisted to both `PatientHistory` and `AuditEvent` records. Archived patients become read-only until restored.
 - **Roles**: admin.
+- **Request Body**:
+  ```json
+  {
+    "reason": "Tietopyyntö asiakkaalta"
+  }
+  ```
 - **Responses**:
-  - `204 No Content`.
+  - `204 No Content` on success.
+  - `409 Conflict`: `{ "detail": "Potilas on jo arkistoitu", "code": "PATIENT_ARCHIVED" }` when already archived.
+
+### POST `/api/v1/patients/{patient_id}/restore`
+- **Description**: Reactivate an archived patient after administrative review. Requires a textual reason which is stored in patient history and audit metadata (`REQ-F-REG-002`, `REQ-NF-LEGAL-002`).
+- **Roles**: admin.
+- **Request Body**:
+  ```json
+  {
+    "reason": "Potilas palasi hoitoon"
+  }
+  ```
+- **Responses**:
+  - `200 OK`: Returns updated `PatientDetail` with `status` set to `active` and appended history entries for the archive and restore actions.
+  - `409 Conflict`: `{ "detail": "Potilas ei ole arkistoitu", "code": "PATIENT_NOT_ARCHIVED" }` when attempting to restore an active patient.
 
 ## `/api/v1/appointments`
 

@@ -6,16 +6,20 @@ from sqlmodel import Session
 from app.api.deps import AuthenticatedUser, get_audit_context, get_current_user, get_db, require_roles
 from app.schemas import (
     Pagination,
+    PatientArchiveRequest,
     PatientCreate,
     PatientMergeRequest,
     PatientRead,
+    PatientRestoreRequest,
     PatientSummary,
     PatientUpdate,
 )
 from app.services import (
     PatientConflictError,
+    PatientArchivedError,
     PatientIdentifierLockedError,
     PatientMergeError,
+    PatientNotArchivedError,
     PatientNotFoundError,
     archive_patient,
     create_patient,
@@ -23,6 +27,7 @@ from app.services import (
     list_patients,
     merge_patients,
     patch_patient,
+    restore_patient,
     update_patient,
 )
 
@@ -104,6 +109,11 @@ def replace_patient_record(
             status_code=status.HTTP_409_CONFLICT,
             detail={"detail": exc.message, "code": exc.code},
         ) from exc
+    except PatientArchivedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"detail": exc.message, "code": exc.code},
+        ) from exc
 
 
 @router.patch("/{patient_id}", response_model=PatientRead)
@@ -130,6 +140,11 @@ def patch_patient_record(
         detail.update(exc.payload)
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail) from exc
     except PatientIdentifierLockedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"detail": exc.message, "code": exc.code},
+        ) from exc
+    except PatientArchivedError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail={"detail": exc.message, "code": exc.code},
@@ -163,11 +178,52 @@ def merge_patient_record(
 @router.delete("/{patient_id}", status_code=status.HTTP_204_NO_CONTENT)
 def archive_patient_record(
     patient_id: int,
+    payload: PatientArchiveRequest,
     session: Session = Depends(get_db),
     current: AuthenticatedUser = Depends(require_roles("admin")),
     context: dict = Depends(get_audit_context),
 ) -> None:
     try:
-        archive_patient(session, patient_id=patient_id, actor_id=current.user.id, context=context)
+        archive_patient(
+            session,
+            patient_id=patient_id,
+            actor_id=current.user.id,
+            reason=payload.reason,
+            context=context,
+        )
     except PatientNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Potilasta ei löydy") from exc
+    except PatientArchivedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"detail": exc.message, "code": exc.code},
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.post("/{patient_id}/restore", response_model=PatientRead)
+def restore_patient_record(
+    patient_id: int,
+    payload: PatientRestoreRequest,
+    session: Session = Depends(get_db),
+    current: AuthenticatedUser = Depends(require_roles("admin")),
+    context: dict = Depends(get_audit_context),
+) -> PatientRead:
+    try:
+        return restore_patient(
+            session,
+            patient_id=patient_id,
+            actor_id=current.user.id,
+            reason=payload.reason,
+            context=context,
+        )
+    except PatientNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Potilasta ei löydy") from exc
+    except PatientNotArchivedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"detail": exc.message, "code": exc.code},
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc

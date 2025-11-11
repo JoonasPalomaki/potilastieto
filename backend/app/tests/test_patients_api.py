@@ -11,9 +11,10 @@ from fastapi.testclient import TestClient
 from sqlalchemy import text
 from sqlmodel import Session, select
 
+from app.core.config import settings
 from app.db.session import engine, init_db
 from app.main import app
-from app.models import Role, User
+from app.models import AuditEvent, Role, User
 from app.schemas import PatientCreate
 from app.services import create_patient, ensure_seed_data, security
 
@@ -50,6 +51,8 @@ def api_test_context() -> Dict[str, object]:
 
         doctor_password = "doctorpass"
         billing_password = "billingpass"
+        admin_username = settings.first_superuser
+        admin_password = settings.first_superuser_password
 
         doctor_role = session.exec(select(Role).where(Role.code == "doctor")).one()
         billing_role = session.exec(select(Role).where(Role.code == "billing")).one()
@@ -91,6 +94,8 @@ def api_test_context() -> Dict[str, object]:
             "doctor_password": doctor_password,
             "billing_username": billing.username,
             "billing_password": billing_password,
+            "admin_username": admin_username,
+            "admin_password": admin_password,
         }
 
     with TestClient(app) as client:
@@ -157,3 +162,72 @@ def test_billing_role_cannot_modify_patients(api_test_context: Dict[str, object]
         headers=headers,
     )
     assert delete_response.status_code == 403
+
+
+def test_admin_must_provide_reason_when_archiving(api_test_context: Dict[str, object]) -> None:
+    client: TestClient = api_test_context["client"]
+    token = _login(client, api_test_context["admin_username"], api_test_context["admin_password"])
+    headers = {"Authorization": f"Bearer {token}"}
+
+    response = client.delete(
+        f"/api/v1/patients/{api_test_context['patient_id']}",
+        headers=headers,
+    )
+
+    assert response.status_code == 422
+
+
+def test_archived_patients_are_read_only_and_restore_logs_reason(api_test_context: Dict[str, object]) -> None:
+    client: TestClient = api_test_context["client"]
+    admin_headers = {
+        "Authorization": f"Bearer {_login(client, api_test_context['admin_username'], api_test_context['admin_password'])}"
+    }
+    archive_reason = "Tietopyyntö asiakkaalta"
+
+    delete_response = client.delete(
+        f"/api/v1/patients/{api_test_context['patient_id']}",
+        json={"reason": archive_reason},
+        headers=admin_headers,
+    )
+    assert delete_response.status_code == 204
+
+    doctor_headers = {
+        "Authorization": f"Bearer {_login(client, api_test_context['doctor_username'], api_test_context['doctor_password'])}"
+    }
+    patch_response = client.patch(
+        f"/api/v1/patients/{api_test_context['patient_id']}",
+        json={"last_name": "Muokattu"},
+        headers=doctor_headers,
+    )
+    assert patch_response.status_code == 409
+    payload = patch_response.json()
+    assert payload.get("code") == "PATIENT_ARCHIVED"
+
+    restore_reason = "Arkistointi peruttu"  # restore reason
+    restore_response = client.post(
+        f"/api/v1/patients/{api_test_context['patient_id']}/restore",
+        json={"reason": restore_reason},
+        headers=admin_headers,
+    )
+    assert restore_response.status_code == 200
+    restored = restore_response.json()
+    assert restored["status"] == "active"
+    assert restored["archived_at"] is None
+
+    history_entries = restored["history"]
+    history_reasons = {(entry["change_type"], entry.get("reason")) for entry in history_entries}
+    assert ("archive", archive_reason) in history_reasons
+    assert ("restore", restore_reason) in history_reasons
+
+    with Session(engine) as session:
+        events = session.exec(
+            select(AuditEvent)
+            .where(
+                AuditEvent.resource_type == "patient",
+                AuditEvent.resource_id == str(api_test_context["patient_id"]),
+                AuditEvent.action.in_(["patient.archive", "patient.restore"]),
+            )
+        ).all()
+
+    recorded_reasons = {event.metadata_json.get("reason") for event in events}
+    assert {archive_reason, restore_reason}.issubset(recorded_reasons)

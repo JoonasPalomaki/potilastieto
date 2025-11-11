@@ -21,6 +21,8 @@ from app.services.background import start_background_services, stop_background_s
 from app.services.patients import (
     PatientConflictError,
     PatientIdentifierLockedError,
+    PatientArchivedError,
+    PatientNotArchivedError,
     PatientMergeError,
     PatientNotFoundError,
     archive_patient,
@@ -29,6 +31,7 @@ from app.services.patients import (
     list_patients,
     merge_patients,
     patch_patient,
+    restore_patient,
     update_patient,
 )
 
@@ -40,6 +43,8 @@ __all__ = [
     "PatientMergeError",
     "PatientConflictError",
     "PatientIdentifierLockedError",
+    "PatientArchivedError",
+    "PatientNotArchivedError",
     "AppointmentNotFoundError",
     "AppointmentConflictError",
     "authenticate_user",
@@ -50,6 +55,7 @@ __all__ = [
     "create_patient",
     "update_patient",
     "patch_patient",
+    "restore_patient",
     "merge_patients",
     "archive_patient",
     "get_patient",
