@@ -12,6 +12,7 @@ dependencies = [
     "fastapi>=0.110",
     "uvicorn[standard]>=0.23",
     "sqlmodel>=0.0.16",
+    "alembic>=1.13",
     "pydantic-settings>=2.2",
     "passlib[bcrypt]>=1.7",
     "pyjwt[crypto]>=2.8",
