@@ -113,6 +113,13 @@ Billing users have read-only access to patient data (list and detail). Write ope
 
 ## `/api/v1/appointments`
 
+### GET `/api/v1/appointments/availability`
+- **Description**: Return free appointment slots grouped by provider and optional location. Accepts repeated `provider_id` query parameters and requires `start_from`/`end_to` window boundaries. Optional filters: `location`, `slot_minutes` (default 30), and `exclude_appointment_id` when rescheduling an existing booking.
+- **Roles**: doctor, nurse, admin.
+- **Responses**:
+  - `200 OK`: `[ { "provider_id": 5, "location": "Room 201", "slots": [ { "start_time": "2024-02-01T09:30:00Z", "end_time": "2024-02-01T10:00:00Z" } ] } ]`.
+  - `400 Bad Request`: Missing provider filter or invalid time range.
+
 ### GET `/api/v1/appointments`
 - **Description**: List appointments with filters `patient_id`, `provider_id`, `status`, `start_date`, `end_date`.
 - **Roles**: doctor, nurse, admin.
@@ -136,7 +143,8 @@ Billing users have read-only access to patient data (list and detail). Write ope
   ```
 - **Responses**:
   - `201 Created`: `AppointmentDetail` with status `scheduled`.
-  - `409 Conflict`: Slot already booked.
+  - `409 Conflict`: Slot already booked. Response payload includes `{ "detail": { "message": "Aika on jo varattu", "code": "PROVIDER_OVERLAP" } }`.
+- **Side effects**: Sends confirmation email/SMS when patient contact info is available.
 
 ### GET `/api/v1/appointments/{appointment_id}`
 - **Description**: Retrieve appointment detail with audit trail references.
@@ -166,6 +174,8 @@ Billing users have read-only access to patient data (list and detail). Write ope
   ```
 - **Responses**:
   - `200 OK`: Updated `AppointmentDetail` with appended `status_history` entry `rescheduled`.
+  - `409 Conflict`: `{ "detail": { "message": "Aika on jo varattu", "code": "PROVIDER_OVERLAP", "alternatives": [AvailabilitySlot] } }` when requested slot is busy.
+- **Side effects**: Sends reschedule notification to the patient if email/phone is available.
 
 ### POST `/api/v1/appointments/{appointment_id}/cancel`
 - **Description**: Cancel appointment with reason and optional notify flags (`REQ-F-APPT-003`).
@@ -179,6 +189,8 @@ Billing users have read-only access to patient data (list and detail). Write ope
   ```
 - **Responses**:
   - `200 OK`: Appointment marked `cancelled`, `cancelled_at` timestamp returned.
+  - `409 Conflict`: `{ "detail": { "message": "Aikaväli on virheellinen", "code": "INVALID_TIME_RANGE" } }` for invalid payloads.
+- **Side effects**: Sends cancellation notification when `notify_patient` is true.
 
 ### DELETE `/api/v1/appointments/{appointment_id}`
 - **Description**: Hard delete disabled; this endpoint returns `405 Method Not Allowed` to keep audit trail intact. Admins should use cancel or archive patterns.

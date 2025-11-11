@@ -61,3 +61,20 @@ class AppointmentSummary(BaseModel):
 class AppointmentCancelRequest(BaseModel):
     reason: Optional[str] = None
     notify_patient: bool = False
+
+
+class AppointmentRescheduleRequest(BaseModel):
+    start_time: datetime
+    end_time: datetime
+    reason: Optional[str] = None
+
+
+class AvailabilitySlot(BaseModel):
+    start_time: datetime
+    end_time: datetime
+
+
+class AppointmentAvailability(BaseModel):
+    provider_id: int
+    location: Optional[str] = None
+    slots: List[AvailabilitySlot] = Field(default_factory=list)
