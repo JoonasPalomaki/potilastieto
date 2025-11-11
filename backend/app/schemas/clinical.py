@@ -4,7 +4,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class VisitBase(BaseModel):
@@ -93,6 +93,8 @@ class OrderRead(OrderBase):
 
 
 class LabResultBase(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     order_id: int
     result_type: str
     status: Optional[str] = Field(default="pending")
@@ -100,7 +102,7 @@ class LabResultBase(BaseModel):
     unit: Optional[str] = None
     reference_range: Optional[str] = None
     observed_at: Optional[datetime] = None
-    metadata: dict = Field(default_factory=dict)
+    metadata: dict = Field(default_factory=dict, alias="metadata_json")
 
 
 class LabResultCreate(LabResultBase):
@@ -108,12 +110,14 @@ class LabResultCreate(LabResultBase):
 
 
 class LabResultUpdate(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     status: Optional[str] = None
     value: Optional[str] = None
     unit: Optional[str] = None
     reference_range: Optional[str] = None
     observed_at: Optional[datetime] = None
-    metadata: Optional[dict] = None
+    metadata: Optional[dict] = Field(default=None, alias="metadata_json")
 
 
 class LabResultRead(LabResultBase):
@@ -123,6 +127,8 @@ class LabResultRead(LabResultBase):
 
 
 class InvoiceBase(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     patient_id: int
     visit_id: Optional[int] = None
     total_amount: Decimal
@@ -130,7 +136,7 @@ class InvoiceBase(BaseModel):
     status: Optional[str] = Field(default="draft")
     issued_at: Optional[datetime] = None
     due_at: Optional[datetime] = None
-    metadata: dict = Field(default_factory=dict)
+    metadata: dict = Field(default_factory=dict, alias="metadata_json")
 
 
 class InvoiceCreate(InvoiceBase):
@@ -138,12 +144,14 @@ class InvoiceCreate(InvoiceBase):
 
 
 class InvoiceUpdate(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     total_amount: Optional[Decimal] = None
     currency: Optional[str] = None
     status: Optional[str] = None
     issued_at: Optional[datetime] = None
     due_at: Optional[datetime] = None
-    metadata: Optional[dict] = None
+    metadata: Optional[dict] = Field(default=None, alias="metadata_json")
 
 
 class InvoiceRead(InvoiceBase):

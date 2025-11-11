@@ -64,9 +64,9 @@ class LabResult(TimestampMixin, table=True):
     unit: Optional[str] = Field(default=None, max_length=32)
     reference_range: Optional[str] = Field(default=None, max_length=255)
     observed_at: Optional[datetime] = Field(default=None)
-    metadata: dict = Field(
+    metadata_json: dict = Field(
         default_factory=dict,
-        sa_column=Column(JSON, nullable=False, default=dict),
+        sa_column=Column("metadata", JSON, nullable=False, default=dict),
     )
 
 
@@ -83,7 +83,7 @@ class Invoice(TimestampMixin, table=True):
     status: str = Field(default="draft", max_length=32, index=True)
     issued_at: Optional[datetime] = Field(default=None)
     due_at: Optional[datetime] = Field(default=None)
-    metadata: dict = Field(
+    metadata_json: dict = Field(
         default_factory=dict,
-        sa_column=Column(JSON, nullable=False, default=dict),
+        sa_column=Column("metadata", JSON, nullable=False, default=dict),
     )

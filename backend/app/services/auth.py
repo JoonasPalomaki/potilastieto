@@ -54,7 +54,7 @@ def create_tokens_for_user(
         user_id=user.id,
         token=refresh_token,
         expires_at=expires_at,
-        metadata=metadata,
+        metadata_json=metadata,
     )
     session.add(refresh_entry)
     session.commit()

@@ -18,7 +18,7 @@ class RefreshToken(TimestampMixin, table=True):
     issued_at: datetime = Field(default_factory=datetime.utcnow)
     expires_at: datetime
     revoked_at: Optional[datetime] = Field(default=None)
-    metadata: dict = Field(
+    metadata_json: dict = Field(
         default_factory=dict,
-        sa_column=Column(JSON, nullable=False, default=dict),
+        sa_column=Column("metadata", JSON, nullable=False, default=dict),
     )
