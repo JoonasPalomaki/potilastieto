@@ -6,7 +6,15 @@ from typing import Dict, List, Optional, Set, Tuple
 from sqlalchemy import func, or_
 from sqlmodel import Session, select
 
-from app.models import Consent, Patient, PatientContact, PatientHistory
+from app.models import (
+    ClinicalNote,
+    Consent,
+    Order,
+    Patient,
+    PatientContact,
+    PatientHistory,
+    Visit,
+)
 from app.schemas.patient import (
     ConsentCreate,
     ConsentRead,
@@ -39,6 +47,13 @@ class PatientMergeError(Exception):
         self.code = code
         self.message = message
         self.payload = payload or {}
+
+
+class PatientIdentifierLockedError(Exception):
+    def __init__(self, message: str, *, code: str = "IDENTIFIER_LOCKED") -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
 
 
 def _to_contact_info(data: Optional[dict]) -> Optional[ContactInfo]:
@@ -182,6 +197,25 @@ def _contact_signature(contact: PatientContact) -> Tuple[str, Optional[str], Opt
         contact.phone.strip() if contact.phone else None,
         contact.email.strip().lower() if contact.email else None,
     )
+
+
+def _has_dependent_records(session: Session, patient_id: int) -> bool:
+    visit_exists = session.exec(
+        select(Visit.id).where(Visit.patient_id == patient_id).limit(1)
+    ).first()
+    if visit_exists:
+        return True
+
+    note_exists = session.exec(
+        select(ClinicalNote.id).where(ClinicalNote.patient_id == patient_id).limit(1)
+    ).first()
+    if note_exists:
+        return True
+
+    order_exists = session.exec(
+        select(Order.id).where(Order.patient_id == patient_id).limit(1)
+    ).first()
+    return order_exists is not None
 
 
 def _consent_signature(
@@ -451,6 +485,7 @@ def update_patient(
     patient_id: int,
     data: PatientCreate,
     actor_id: Optional[int],
+    actor_role: Optional[str],
     reason: Optional[str] = None,
     context: Optional[dict] = None,
 ) -> PatientRead:
@@ -467,6 +502,16 @@ def update_patient(
     )
     if duplicates:
         raise PatientConflictError("PATIENT_DUPLICATE", payload={"matches": duplicates})
+
+    identifier_changed = data.identifier != patient.identifier
+    if (
+        identifier_changed
+        and actor_role != "admin"
+        and _has_dependent_records(session, patient.id)
+    ):
+        raise PatientIdentifierLockedError(
+            "Potilaan henkilötunnusta ei voi muuttaa, koska potilaalla on käyntejä, merkintöjä tai tilauksia."
+        )
 
     patient.identifier = data.identifier
     patient.first_name = data.first_name
@@ -511,6 +556,7 @@ def patch_patient(
     patient_id: int,
     data: PatientUpdate,
     actor_id: Optional[int],
+    actor_role: Optional[str],
     context: Optional[dict] = None,
 ) -> PatientRead:
     patient = session.get(Patient, patient_id)
@@ -532,6 +578,14 @@ def patch_patient(
         raise PatientConflictError("PATIENT_DUPLICATE", payload={"matches": duplicates})
 
     if data.identifier is not None:
+        if (
+            data.identifier != patient.identifier
+            and actor_role != "admin"
+            and _has_dependent_records(session, patient.id)
+        ):
+            raise PatientIdentifierLockedError(
+                "Potilaan henkilötunnusta ei voi muuttaa, koska potilaalla on käyntejä, merkintöjä tai tilauksia."
+            )
         patient.identifier = data.identifier
 
     if data.first_name is not None:

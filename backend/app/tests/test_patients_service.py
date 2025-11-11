@@ -8,13 +8,17 @@ from sqlalchemy import text
 from sqlmodel import Session
 
 from app.db.session import engine, init_db
-from app.schemas import ConsentCreate, PatientContactCreate, PatientCreate
+from app.models.visit import Visit
+from app.schemas import ConsentCreate, PatientContactCreate, PatientCreate, PatientUpdate
 from app.services import (
     PatientConflictError,
+    PatientIdentifierLockedError,
     PatientMergeError,
     PatientNotFoundError,
     create_patient,
+    patch_patient,
     merge_patients,
+    update_patient,
 )
 
 
@@ -22,6 +26,10 @@ from app.services import (
 def prepare_database() -> None:
     init_db()
     with Session(engine) as session:
+        session.exec(text("DELETE FROM lab_results"))
+        session.exec(text("DELETE FROM orders"))
+        session.exec(text("DELETE FROM clinical_notes"))
+        session.exec(text("DELETE FROM visits"))
         session.exec(text("DELETE FROM patient_history"))
         session.exec(text("DELETE FROM consents"))
         session.exec(text("DELETE FROM patient_contacts"))
@@ -222,3 +230,102 @@ def test_merge_patients_requires_existing_records(session: Session) -> None:
             actor_id=1,
             context={},
         )
+
+
+def test_update_patient_blocks_identifier_change_with_dependents(session: Session) -> None:
+    patient = create_patient(
+        session,
+        data=PatientCreate(
+            identifier="131052-308T",
+            first_name="Test",
+            last_name="Potilas",
+            date_of_birth=date(1952, 10, 13),
+            sex="female",
+        ),
+        actor_id=None,
+        context={},
+    )
+
+    session.add(Visit(patient_id=patient.id))
+    session.commit()
+
+    update_payload = PatientCreate(
+        identifier="131052-302L",
+        first_name="Test",
+        last_name="Potilas",
+        date_of_birth=patient.date_of_birth,
+        sex=patient.sex,
+    )
+
+    with pytest.raises(PatientIdentifierLockedError) as exc:
+        update_patient(
+            session,
+            patient_id=patient.id,
+            data=update_payload,
+            actor_id=None,
+            actor_role="doctor",
+            reason="Päivitys",
+            context={},
+        )
+
+    assert exc.value.code == "IDENTIFIER_LOCKED"
+    session.rollback()
+
+    result = update_patient(
+        session,
+        patient_id=patient.id,
+        data=update_payload,
+        actor_id=None,
+        actor_role="admin",
+        reason="Ylläpidon muutos",
+        context={},
+    )
+
+    assert result.identifier == "131052-302L"
+
+
+def test_patch_patient_blocks_identifier_change_with_dependents(session: Session) -> None:
+    patient = create_patient(
+        session,
+        data=PatientCreate(
+            identifier="131052-308T",
+            first_name="Test",
+            last_name="Potilas",
+            date_of_birth=date(1952, 10, 13),
+            sex="female",
+        ),
+        actor_id=None,
+        context={},
+    )
+
+    session.add(Visit(patient_id=patient.id))
+    session.commit()
+
+    patch_payload = PatientUpdate(
+        identifier="131052-302L",
+        first_name="Test",
+        last_name="Potilas",
+    )
+
+    with pytest.raises(PatientIdentifierLockedError):
+        patch_patient(
+            session,
+            patient_id=patient.id,
+            data=patch_payload,
+            actor_id=None,
+            actor_role="doctor",
+            context={},
+        )
+
+    session.rollback()
+
+    patched = patch_patient(
+        session,
+        patient_id=patient.id,
+        data=patch_payload,
+        actor_id=None,
+        actor_role="admin",
+        context={},
+    )
+
+    assert patched.identifier == "131052-302L"

@@ -1,0 +1,159 @@
+from __future__ import annotations
+
+from datetime import date
+from typing import Dict
+
+import pytest
+
+pytest.importorskip("httpx")
+
+from fastapi.testclient import TestClient
+from sqlalchemy import text
+from sqlmodel import Session, select
+
+from app.db.session import engine, init_db
+from app.main import app
+from app.models import Role, User
+from app.schemas import PatientCreate
+from app.services import create_patient, ensure_seed_data, security
+
+
+def _login(client: TestClient, username: str, password: str) -> str:
+    response = client.post(
+        "/api/v1/auth/login",
+        json={"username": username, "password": password},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    return body["access_token"]
+
+
+@pytest.fixture
+def api_test_context() -> Dict[str, object]:
+    init_db()
+    with Session(engine) as session:
+        session.exec(text("DELETE FROM refresh_tokens"))
+        session.exec(text("DELETE FROM audit_events"))
+        session.exec(text("DELETE FROM lab_results"))
+        session.exec(text("DELETE FROM orders"))
+        session.exec(text("DELETE FROM clinical_notes"))
+        session.exec(text("DELETE FROM visits"))
+        session.exec(text("DELETE FROM patient_history"))
+        session.exec(text("DELETE FROM consents"))
+        session.exec(text("DELETE FROM patient_contacts"))
+        session.exec(text("DELETE FROM patients"))
+        session.exec(text("DELETE FROM users"))
+        session.exec(text("DELETE FROM roles"))
+        session.commit()
+
+        ensure_seed_data(session)
+
+        doctor_password = "doctorpass"
+        billing_password = "billingpass"
+
+        doctor_role = session.exec(select(Role).where(Role.code == "doctor")).one()
+        billing_role = session.exec(select(Role).where(Role.code == "billing")).one()
+
+        doctor = User(
+            username="doctor",
+            password_hash=security.hash_password(doctor_password),
+            display_name="Tohtori Testi",
+            role_id=doctor_role.id,
+        )
+        billing = User(
+            username="billing",
+            password_hash=security.hash_password(billing_password),
+            display_name="Laskuttaja Testi",
+            role_id=billing_role.id,
+        )
+        session.add(doctor)
+        session.add(billing)
+        session.commit()
+        session.refresh(doctor)
+        session.refresh(billing)
+
+        patient = create_patient(
+            session,
+            data=PatientCreate(
+                identifier="131052-308T",
+                first_name="Test",
+                last_name="Potilas",
+                date_of_birth=date(1952, 10, 13),
+                sex="female",
+            ),
+            actor_id=doctor.id,
+            context={},
+        )
+
+        context = {
+            "patient_id": patient.id,
+            "doctor_username": doctor.username,
+            "doctor_password": doctor_password,
+            "billing_username": billing.username,
+            "billing_password": billing_password,
+        }
+
+    with TestClient(app) as client:
+        context["client"] = client
+        yield context
+
+
+def test_billing_role_can_view_patients(api_test_context: Dict[str, object]) -> None:
+    client: TestClient = api_test_context["client"]
+    token = _login(client, api_test_context["billing_username"], api_test_context["billing_password"])
+    headers = {"Authorization": f"Bearer {token}"}
+
+    list_response = client.get("/api/v1/patients/", headers=headers)
+    assert list_response.status_code == 200
+    payload = list_response.json()
+    assert payload["items"], "Billing user should see patient summaries"
+
+    detail_response = client.get(
+        f"/api/v1/patients/{api_test_context['patient_id']}",
+        headers=headers,
+    )
+    assert detail_response.status_code == 200
+    assert detail_response.json()["id"] == api_test_context["patient_id"]
+
+
+def test_billing_role_cannot_modify_patients(api_test_context: Dict[str, object]) -> None:
+    client: TestClient = api_test_context["client"]
+    token = _login(client, api_test_context["billing_username"], api_test_context["billing_password"])
+    headers = {"Authorization": f"Bearer {token}"}
+
+    create_payload = {
+        "identifier": "010101-123N",
+        "first_name": "Uusi",
+        "last_name": "Potilas",
+    }
+
+    post_response = client.post("/api/v1/patients/", json=create_payload, headers=headers)
+    assert post_response.status_code == 403
+
+    full_payload = {
+        "identifier": "010101-123N",
+        "first_name": "Uusi",
+        "last_name": "Potilas",
+        "date_of_birth": "1952-10-13",
+        "sex": "female",
+    }
+
+    put_response = client.put(
+        f"/api/v1/patients/{api_test_context['patient_id']}",
+        json=full_payload,
+        headers=headers,
+    )
+    assert put_response.status_code == 403
+
+    patch_response = client.patch(
+        f"/api/v1/patients/{api_test_context['patient_id']}",
+        json={"last_name": "Muokattu"},
+        headers=headers,
+    )
+    assert patch_response.status_code == 403
+
+    delete_response = client.delete(
+        f"/api/v1/patients/{api_test_context['patient_id']}",
+        headers=headers,
+    )
+    assert delete_response.status_code == 403

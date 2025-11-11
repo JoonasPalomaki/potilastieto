@@ -14,6 +14,7 @@ from app.schemas import (
 )
 from app.services import (
     PatientConflictError,
+    PatientIdentifierLockedError,
     PatientMergeError,
     PatientNotFoundError,
     archive_patient,
@@ -35,7 +36,7 @@ def list_patient_records(
     search: str | None = None,
     status_filter: str | None = None,
     session: Session = Depends(get_db),
-    _: AuthenticatedUser = Depends(require_roles("doctor", "nurse", "admin")),
+    _: AuthenticatedUser = Depends(require_roles("doctor", "nurse", "admin", "billing")),
 ) -> Pagination[PatientSummary]:
     items, total = list_patients(
         session,
@@ -66,7 +67,7 @@ def create_patient_record(
 def get_patient_record(
     patient_id: int,
     session: Session = Depends(get_db),
-    _: AuthenticatedUser = Depends(require_roles("doctor", "nurse", "admin")),
+    _: AuthenticatedUser = Depends(require_roles("doctor", "nurse", "admin", "billing")),
 ) -> PatientRead:
     try:
         return get_patient(session, patient_id)
@@ -88,6 +89,7 @@ def replace_patient_record(
             patient_id=patient_id,
             data=payload,
             actor_id=current.user.id,
+            actor_role=current.role.code if current.role else None,
             reason="Täysi päivitys",
             context=context,
         )
@@ -97,6 +99,11 @@ def replace_patient_record(
         detail = {"detail": "Potilas on jo olemassa", "code": exc.code}
         detail.update(exc.payload)
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail) from exc
+    except PatientIdentifierLockedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"detail": exc.message, "code": exc.code},
+        ) from exc
 
 
 @router.patch("/{patient_id}", response_model=PatientRead)
@@ -113,6 +120,7 @@ def patch_patient_record(
             patient_id=patient_id,
             data=payload,
             actor_id=current.user.id,
+            actor_role=current.role.code if current.role else None,
             context=context,
         )
     except PatientNotFoundError as exc:
@@ -121,6 +129,11 @@ def patch_patient_record(
         detail = {"detail": "Potilas on jo olemassa", "code": exc.code}
         detail.update(exc.payload)
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail) from exc
+    except PatientIdentifierLockedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"detail": exc.message, "code": exc.code},
+        ) from exc
 
 
 @router.post("/{patient_id}/merge", response_model=PatientRead)
