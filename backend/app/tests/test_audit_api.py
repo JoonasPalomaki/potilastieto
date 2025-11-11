@@ -16,6 +16,7 @@ from app.main import app
 from app.models import Appointment, AuditEvent, Role, User
 from app.schemas import PatientCreate
 from app.services import audit, create_patient
+from app.services.audit_policy import ensure_appointment_metadata
 from app.services.security import create_access_token
 
 
@@ -161,7 +162,7 @@ def audit_api_context() -> Dict[str, object]:
             action="appointment.read",
             resource_type="appointment",
             resource_id=str(appointment.id),
-            metadata={"patient_id": patient_one.id},
+            metadata=ensure_appointment_metadata(patient_id=patient_one.id),
             context={"request_id": "appt-read"},
         )
 

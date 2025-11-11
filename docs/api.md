@@ -6,7 +6,7 @@ The REST API follows JSON over HTTPS (HTTP for local development) and aligns wit
 
 - **Authentication**: Bearer JWT tokens obtained via `/api/v1/auth/login`. Refresh tokens rotate via `/api/v1/auth/refresh` (`REQ-NF-SEC-001`).
 - **Authorization**: Role-based access control enforced per route (doctor, nurse, billing, admin) (`REQ-F-ADM-001`, `REQ-NF-SEC-002`).
-- **Audit Logging**: Every read or write to patient or appointment data records an `AuditEvent` with actor, timestamp, resource, and action (`REQ-NF-SEC-003`).
+- **Audit Logging**: Every read or write to patient or appointment data records an `AuditEvent` with actor, timestamp, resource, and action (`REQ-NF-SEC-003`). Metadata is filtered by `app.services.audit_policy` so only allow-listed keys such as `patient_ref`, `identifier_token`, `source_patient_ref`, `merged_into_ref`, `previous_start`, `previous_end`, `reason`, `notify`, `auto`, `result_count`, and `index` are persisted. Personal identifiers (e.g., hetu) are salted and hashed before storage to satisfy `REQ-NF-LEGAL-001`.
 - **Pagination**: List endpoints accept `page` (default 1) and `page_size` (default 25, max 100).
 - **Filtering**: Standard query parameters such as `search`, `status`, `start_date`, `end_date` are optional filters noted per resource.
 - **Error Format**: Errors respond with `{ "detail": "message", "code": "ERROR_CODE", "errors": [...] }` and HTTP status codes (400, 401, 403, 404, 409, 422, 500).

@@ -28,6 +28,7 @@ from app.schemas.patient import (
     PatientUpdate,
 )
 from app.services import audit
+from app.services.audit_policy import ensure_patient_metadata, make_patient_reference
 
 
 class PatientNotFoundError(Exception):
@@ -392,7 +393,10 @@ def create_patient(
         action="patient.create",
         resource_type="patient",
         resource_id=str(patient.id),
-        metadata={"identifier": patient.identifier},
+        metadata=ensure_patient_metadata(
+            patient_id=patient.id,
+            identifier=patient.identifier,
+        ),
         context=context or {},
     )
 
@@ -494,7 +498,11 @@ def merge_patients(
         action="patient.merge",
         resource_type="patient",
         resource_id=str(target.id),
-        metadata={"source_patient_id": source_patient_id},
+        metadata=ensure_patient_metadata(
+            patient_id=target.id,
+            identifier=target.identifier,
+            extra={"source_patient_ref": make_patient_reference(source_patient_id)},
+        ),
         context=context or {},
     )
 
@@ -504,7 +512,11 @@ def merge_patients(
         action="patient.merge.archived",
         resource_type="patient",
         resource_id=str(source.id),
-        metadata={"merged_into": target_patient_id},
+        metadata=ensure_patient_metadata(
+            patient_id=source.id,
+            identifier=source.identifier,
+            extra={"merged_into_ref": make_patient_reference(target_patient_id)},
+        ),
         context=context or {},
     )
 
@@ -577,7 +589,10 @@ def update_patient(
         action="patient.update",
         resource_type="patient",
         resource_id=str(patient.id),
-        metadata={"identifier": patient.identifier},
+        metadata=ensure_patient_metadata(
+            patient_id=patient.id,
+            identifier=patient.identifier,
+        ),
         context=context or {},
     )
 
@@ -662,7 +677,10 @@ def patch_patient(
         action="patient.patch",
         resource_type="patient",
         resource_id=str(patient.id),
-        metadata={"identifier": patient.identifier},
+        metadata=ensure_patient_metadata(
+            patient_id=patient.id,
+            identifier=patient.identifier,
+        ),
         context=context or {},
     )
 
@@ -707,7 +725,11 @@ def archive_patient(
         action="patient.archive",
         resource_type="patient",
         resource_id=str(patient.id),
-        metadata={"identifier": patient.identifier, "reason": normalized_reason},
+        metadata=ensure_patient_metadata(
+            patient_id=patient.id,
+            identifier=patient.identifier,
+            reason=normalized_reason,
+        ),
         context=context or {},
     )
 
@@ -751,7 +773,11 @@ def restore_patient(
         action="patient.restore",
         resource_type="patient",
         resource_id=str(patient.id),
-        metadata={"identifier": patient.identifier, "reason": normalized_reason},
+        metadata=ensure_patient_metadata(
+            patient_id=patient.id,
+            identifier=patient.identifier,
+            reason=normalized_reason,
+        ),
         context=context or {},
     )
 
