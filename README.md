@@ -31,9 +31,9 @@ The first runnable version exposes the backend APIs and background services requ
    ```
 4. **Run database migrations & start the API**
    ```powershell
-   uvicorn app.main:app --reload
+   uvicorn app.main:app --reload --app-dir backend
    ```
-   The API will be available at `http://127.0.0.1:8000` with interactive docs at `/docs`.
+   The project code resides in the `backend` directory, so the `--app-dir backend` flag ensures Python can resolve the `app` package. The API will be available at `http://127.0.0.1:8000` with interactive docs at `/docs`.
 5. **Generate requirement status JSON (optional)**
    ```powershell
    python tools/spec_loader.py --output specs/spec.json
