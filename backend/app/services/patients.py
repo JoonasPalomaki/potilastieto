@@ -244,6 +244,25 @@ def _consent_signature(
     )
 
 
+def _patient_list_audit_metadata(result: Tuple[List[PatientSummary], int], params: Dict[str, object]) -> Dict[str, object]:
+    items, total = result
+    metadata: Dict[str, object] = {
+        "page": params.get("page", 1),
+        "page_size": params.get("page_size", 25),
+        "search": params.get("search"),
+        "status": params.get("status"),
+        "returned": len(items),
+        "total": total,
+    }
+    return {key: value for key, value in metadata.items() if value is not None}
+
+
+@audit.log_read(
+    resource_type="patient",
+    many=True,
+    action="patient.list",
+    metadata_getter=_patient_list_audit_metadata,
+)
 def list_patients(
     session: Session,
     *,
@@ -279,6 +298,7 @@ def list_patients(
     return [_build_patient_summary(patient) for patient in patients], total
 
 
+@audit.log_read(resource_type="patient")
 def get_patient(session: Session, patient_id: int) -> PatientRead:
     patient = session.get(Patient, patient_id)
     if not patient:

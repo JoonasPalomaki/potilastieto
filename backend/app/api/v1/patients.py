@@ -41,7 +41,8 @@ def list_patient_records(
     search: str | None = None,
     status_filter: str | None = None,
     session: Session = Depends(get_db),
-    _: AuthenticatedUser = Depends(require_roles("doctor", "nurse", "admin", "billing")),
+    current: AuthenticatedUser = Depends(require_roles("doctor", "nurse", "admin", "billing")),
+    context: dict = Depends(get_audit_context),
 ) -> Pagination[PatientSummary]:
     items, total = list_patients(
         session,
@@ -49,6 +50,8 @@ def list_patient_records(
         page_size=min(page_size, 100),
         search=search,
         status=status_filter,
+        audit_actor_id=current.user.id,
+        audit_context=context,
     )
     return Pagination[PatientSummary](items=items, page=page, page_size=page_size, total=total)
 
@@ -72,10 +75,16 @@ def create_patient_record(
 def get_patient_record(
     patient_id: int,
     session: Session = Depends(get_db),
-    _: AuthenticatedUser = Depends(require_roles("doctor", "nurse", "admin", "billing")),
+    current: AuthenticatedUser = Depends(require_roles("doctor", "nurse", "admin", "billing")),
+    context: dict = Depends(get_audit_context),
 ) -> PatientRead:
     try:
-        return get_patient(session, patient_id)
+        return get_patient(
+            session,
+            patient_id,
+            audit_actor_id=current.user.id,
+            audit_context=context,
+        )
     except PatientNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Potilasta ei löydy") from exc
 

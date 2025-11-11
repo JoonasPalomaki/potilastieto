@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from sqlalchemy import and_, func
 from sqlmodel import Session, select
@@ -108,6 +108,34 @@ def _check_overlap(
         raise AppointmentConflictError("PROVIDER_OVERLAP")
 
 
+def _appointment_list_audit_metadata(
+    result: Tuple[List[AppointmentSummary], int], params: Dict[str, object]
+) -> Dict[str, object]:
+    items, total = result
+    metadata: Dict[str, object] = {
+        "page": params.get("page", 1),
+        "page_size": params.get("page_size", 25),
+        "patient_id": params.get("patient_id"),
+        "provider_id": params.get("provider_id"),
+        "status": params.get("status"),
+        "returned": len(items),
+        "total": total,
+    }
+    start_from = params.get("start_from")
+    end_to = params.get("end_to")
+    if isinstance(start_from, datetime):
+        metadata["start_from"] = start_from.isoformat()
+    if isinstance(end_to, datetime):
+        metadata["end_to"] = end_to.isoformat()
+    return {key: value for key, value in metadata.items() if value is not None}
+
+
+@audit.log_read(
+    resource_type="appointment",
+    many=True,
+    action="appointment.list",
+    metadata_getter=_appointment_list_audit_metadata,
+)
 def list_appointments(
     session: Session,
     *,
@@ -146,6 +174,7 @@ def list_appointments(
     return [_build_summary(item) for item in items], total
 
 
+@audit.log_read(resource_type="appointment")
 def get_appointment(session: Session, appointment_id: int) -> AppointmentRead:
     appointment = session.get(Appointment, appointment_id)
     if not appointment:

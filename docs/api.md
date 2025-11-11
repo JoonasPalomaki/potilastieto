@@ -216,10 +216,15 @@ Billing users have read-only access to patient data (list and detail). Write ope
 ## `/api/v1/audit`
 
 ### GET `/api/v1/audit`
-- **Description**: List audit events filtered by `resource_type`, `resource_id`, `actor_id`, `action`, `from`, `to` (`REQ-NF-SEC-003`).
-- **Roles**: admin (read-only), with doctor/nurse allowed to see events tied to patients they are permitted to view.
+- **Description**: List audit events filtered by `resource_type`, `resource_id`, `actor_id`, `action`, `from`, `to` (`REQ-NF-SEC-003`). Pagination is capped at 100 rows per page to prevent bulk leakage.
+- **Roles**: admin (full access). Doctors and nurses must provide `resource_type=patient|appointment` and a matching `resource_id`; responses are scoped to the resources they are allowed to read.
+- **Query Parameters**:
+  - `resource_type`, `resource_id`, `actor_id`, `action`, `from`, `to`, `page`, `page_size` (capped at 100 records per page).
+  - `format=csv` exports the current page as `text/csv` with the same filters applied.
+- **Errors**:
+  - `400 Bad Request`: Missing `resource_id` for doctor/nurse query, unsupported `resource_type`, or unsupported export format.
 - **Responses**:
-  - `200 OK`: `{ "items": [AuditEvent], "page": 1, "page_size": 25, "total": 42 }`.
+  - `200 OK`: `{ "items": [AuditEvent], "page": 1, "page_size": 25, "total": 42 }` or CSV attachment when `format=csv`.
 
 ### GET `/api/v1/audit/{audit_id}`
 - **Description**: Fetch a single audit event for deep inspection. Includes metadata such as request id and origin IP.
