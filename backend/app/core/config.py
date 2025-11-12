@@ -24,6 +24,10 @@ class Settings(BaseSettings):
         default="audit-secret",
         description="Secret used to generate opaque tokens for audit metadata",
     )
+    frontend_build_path: str = Field(
+        default="frontend/dist",
+        description="Directory containing the compiled frontend assets to serve via FastAPI",
+    )
 
     class Config:
         env_file = ".env"

@@ -31,7 +31,14 @@ The first runnable version exposes the backend APIs and background services requ
    pip install -e ".[dev]"
    ```
    > ℹ️ The quoted `pip install -e ".[dev]"` command installs Alembic and the rest of the development dependencies needed for database migrations.
-4. **Run database migrations & start the API**
+4. **Build the frontend assets for static hosting**
+   ```powershell
+   cd frontend
+   npm run build
+   cd ..
+   ```
+   Ensure the `frontend/dist` directory exists before launching Uvicorn so the compiled SPA can be served by FastAPI.
+5. **Run database migrations & start the API**
    ```powershell
    uvicorn app.main:app --reload --app-dir backend
    ```
