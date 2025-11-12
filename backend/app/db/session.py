@@ -2,32 +2,48 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterator
+from typing import TYPE_CHECKING, Any, Iterator
 
-from alembic import command
-from alembic.config import Config
-from alembic.script import ScriptDirectory
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+
 from sqlmodel import SQLModel, Session, create_engine
 
 from app.core.config import settings
+
+ALEMBIC_INSTALL_HINT = 'Alembic is required to run database migrations. Install it with `pip install -e ".[dev]"`.'
+
+
+def _require_alembic() -> tuple[Any, Any, Any]:
+    try:
+        from alembic import command as alembic_command
+        from alembic.config import Config as AlembicConfig
+        from alembic.script import ScriptDirectory as AlembicScriptDirectory
+    except ImportError as exc:  # pragma: no cover - exercised via unit test
+        raise RuntimeError(ALEMBIC_INSTALL_HINT) from exc
+
+    return alembic_command, AlembicConfig, AlembicScriptDirectory
 
 connect_args = {"check_same_thread": False} if settings.database_url.startswith("sqlite") else {}
 engine = create_engine(settings.database_url, echo=False, connect_args=connect_args)
 
 
-def get_alembic_config() -> Config:
+def get_alembic_config() -> "Config":
+    _, AlembicConfig, _ = _require_alembic()
     migrations_path = Path(__file__).resolve().parent / "migrations"
-    config = Config()
+    config = AlembicConfig()
     config.set_main_option("script_location", str(migrations_path))
     config.set_main_option("sqlalchemy.url", settings.database_url)
     return config
 
 
 def init_db() -> None:
+    alembic_command, _, AlembicScriptDirectory = _require_alembic()
     config = get_alembic_config()
-    command.upgrade(config, "head")
+    alembic_command.upgrade(config, "head")
     SQLModel.metadata.create_all(engine)
-    script = ScriptDirectory.from_config(config)
+    script = AlembicScriptDirectory.from_config(config)
     head_revision = script.get_current_head()
     if head_revision:
         with engine.begin() as connection:
