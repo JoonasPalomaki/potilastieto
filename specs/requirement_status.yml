@@ -10,8 +10,8 @@ REQ-F-REG-005: in_progress
 REQ-F-APPT-001: in_progress
 REQ-F-APPT-003: in_progress
 REQ-F-ADM-001: in_progress
-REQ-NF-SEC-001: done
-REQ-NF-SEC-002: done
+REQ-NF-SEC-001: in_progress
+REQ-NF-SEC-002: in_progress
 REQ-NF-SEC-003: done
 REQ-NF-LEGAL-001: done
 REQ-NF-LEGAL-002: done
