@@ -36,6 +36,20 @@ from app.services.patients import (
     restore_patient,
     update_patient,
 )
+from app.services.visits import (
+    VisitAppointmentNotFoundError,
+    VisitConflictError,
+    VisitNotFoundError,
+    create_initial_visit,
+    get_initial_visit,
+    update_visit_anamnesis,
+    update_visit_basics,
+    update_visit_diagnoses,
+    update_visit_orders,
+    update_visit_reason,
+    update_visit_status,
+    update_visit_summary,
+)
 
 __all__ = [
     "audit",
@@ -71,4 +85,16 @@ __all__ = [
     "search_availability",
     "start_background_services",
     "stop_background_services",
+    "VisitNotFoundError",
+    "VisitConflictError",
+    "VisitAppointmentNotFoundError",
+    "create_initial_visit",
+    "get_initial_visit",
+    "update_visit_basics",
+    "update_visit_reason",
+    "update_visit_anamnesis",
+    "update_visit_status",
+    "update_visit_diagnoses",
+    "update_visit_orders",
+    "update_visit_summary",
 ]

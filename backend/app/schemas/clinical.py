@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -158,3 +158,100 @@ class InvoiceRead(InvoiceBase):
     id: int
     created_at: datetime
     updated_at: datetime
+
+
+class VisitBasicsPanelBase(BaseModel):
+    visit_type: Optional[str] = None
+    location: Optional[str] = None
+    started_at: Optional[datetime] = None
+    ended_at: Optional[datetime] = None
+    attending_provider_id: Optional[int] = None
+
+
+class VisitBasicsPanelRead(VisitBasicsPanelBase):
+    updated_at: Optional[datetime] = None
+
+
+class VisitReasonPanelRead(BaseModel):
+    reason: Optional[str] = None
+    updated_at: Optional[datetime] = None
+
+
+class VisitReasonPanelUpdate(BaseModel):
+    reason: str = Field(..., min_length=1, max_length=255)
+
+
+class VisitNarrativePanelRead(BaseModel):
+    content: Optional[str] = None
+    author_id: Optional[int] = None
+    updated_at: Optional[datetime] = None
+
+
+class VisitNarrativePanelUpdate(BaseModel):
+    content: str = Field(..., min_length=1)
+
+
+class VisitDiagnosisEntry(BaseModel):
+    code: str = Field(..., min_length=1, max_length=32)
+    description: Optional[str] = None
+    is_primary: bool = Field(default=False)
+
+
+class VisitDiagnosesPanelRead(BaseModel):
+    diagnoses: List[VisitDiagnosisEntry] = Field(default_factory=list)
+    author_id: Optional[int] = None
+    updated_at: Optional[datetime] = None
+
+
+class VisitDiagnosesPanelUpdate(BaseModel):
+    diagnoses: List[VisitDiagnosisEntry] = Field(..., min_length=1)
+
+
+class VisitOrderItem(BaseModel):
+    order_type: str = Field(..., min_length=1, max_length=100)
+    status: Optional[str] = Field(default=None, max_length=32)
+    details: dict = Field(default_factory=dict)
+    placed_at: Optional[datetime] = None
+    ordered_by_id: Optional[int] = None
+
+
+class VisitOrdersPanelRead(BaseModel):
+    orders: List[OrderRead] = Field(default_factory=list)
+
+
+class VisitOrdersPanelUpdate(BaseModel):
+    orders: List[VisitOrderItem] = Field(..., min_length=1)
+
+
+class VisitSummaryPanelRead(VisitNarrativePanelRead):
+    pass
+
+
+class InitialVisitRead(BaseModel):
+    id: int
+    patient_id: int
+    appointment_id: Optional[int] = None
+    basics: VisitBasicsPanelRead
+    reason: VisitReasonPanelRead
+    anamnesis: VisitNarrativePanelRead
+    status: VisitNarrativePanelRead
+    diagnoses: VisitDiagnosesPanelRead
+    orders: VisitOrdersPanelRead
+    summary: VisitSummaryPanelRead
+    created_at: datetime
+    updated_at: datetime
+
+
+class InitialVisitCreate(BaseModel):
+    appointment_id: int
+    basics: Optional[VisitBasicsPanelBase] = None
+    reason: Optional[VisitReasonPanelUpdate] = None
+    anamnesis: Optional[VisitNarrativePanelUpdate] = None
+    status: Optional[VisitNarrativePanelUpdate] = None
+    diagnoses: Optional[VisitDiagnosesPanelUpdate] = None
+    orders: Optional[VisitOrdersPanelUpdate] = None
+    summary: Optional[VisitNarrativePanelUpdate] = None
+
+
+class VisitBasicsPanelUpdate(VisitBasicsPanelBase):
+    pass
