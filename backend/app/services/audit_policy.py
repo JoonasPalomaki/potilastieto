@@ -37,6 +37,11 @@ RESOURCE_METADATA_KEYS: Dict[str, Set[str]] = {
         "slot_count",
         "location",
     },
+    "visit": {
+        "patient_ref",
+        "appointment_id",
+        "panel",
+    },
 }
 
 ACTION_METADATA_KEYS: Dict[str, Set[str]] = {
