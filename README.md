@@ -27,8 +27,9 @@ The first runnable version exposes the backend APIs and background services requ
 3. **Install dependencies**
    ```powershell
    pip install --upgrade pip
-   pip install -e .[dev]
+   pip install -e ".[dev]"
    ```
+   > ℹ️ The quoted `pip install -e ".[dev]"` command installs Alembic and the rest of the development dependencies needed for database migrations.
 4. **Run database migrations & start the API**
    ```powershell
    uvicorn app.main:app --reload --app-dir backend
