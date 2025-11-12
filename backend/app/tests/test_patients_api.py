@@ -121,6 +121,37 @@ def test_billing_role_can_view_patients(api_test_context: Dict[str, object]) -> 
     assert detail_response.json()["id"] == api_test_context["patient_id"]
 
 
+def test_patient_list_audit_metadata(api_test_context: Dict[str, object]) -> None:
+    client: TestClient = api_test_context["client"]
+    token = _login(client, api_test_context["doctor_username"], api_test_context["doctor_password"])
+    headers = {"Authorization": f"Bearer {token}"}
+    params = {"page": 1, "page_size": 10, "search": "Test", "status_filter": "active"}
+
+    response = client.get("/api/v1/patients/", headers=headers, params=params)
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["items"], "Expected patient list to return at least one item"
+
+    with Session(engine) as session:
+        events = session.exec(
+            select(AuditEvent)
+            .where(AuditEvent.action == "patient.list")
+            .order_by(AuditEvent.timestamp.desc())
+        ).all()
+
+    assert events, "Expected audit events for patient list action"
+    assert len(events) == len(payload["items"])
+
+    for event in events:
+        metadata = event.metadata_json
+        assert metadata.get("returned") == len(payload["items"])
+        assert metadata.get("total") == payload["total"]
+        assert metadata.get("search") == params["search"]
+        assert metadata.get("status") == params["status_filter"]
+        assert metadata.get("page") == params["page"]
+        assert metadata.get("page_size") == params["page_size"]
+
+
 def test_billing_role_cannot_modify_patients(api_test_context: Dict[str, object]) -> None:
     client: TestClient = api_test_context["client"]
     token = _login(client, api_test_context["billing_username"], api_test_context["billing_password"])

@@ -44,6 +44,7 @@ ACTION_METADATA_KEYS: Dict[str, Set[str]] = {
     "appointment.cancel": {"notify", "reason"},
     "patient.archive": {"reason"},
     "patient.restore": {"reason"},
+    "patient.list": {"returned", "total", "search", "status"},
 }
 
 
