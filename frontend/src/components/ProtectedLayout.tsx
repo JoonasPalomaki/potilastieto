@@ -1,6 +1,20 @@
-import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 
 import { useAuth } from '../contexts/AuthContext';
+
+const navigationLinks = [
+  { to: '/start', label: 'Aloitussivu' },
+  { to: '/patients', label: 'Potilaslista' },
+  { to: '/first-visit', label: 'Ensikäynti' },
+];
+
+const linkClasses = ({ isActive }: { isActive: boolean }) =>
+  [
+    'inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500',
+    isActive
+      ? 'bg-sky-500/20 text-sky-200 border border-sky-500/40'
+      : 'border border-transparent text-slate-200 hover:border-slate-700 hover:bg-slate-800/80',
+  ].join(' ');
 
 const ProtectedLayout = () => {
   const { isAuthenticated, initializing, logout, session } = useAuth();
@@ -27,10 +41,23 @@ const ProtectedLayout = () => {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
       <header className="border-b border-slate-800 bg-slate-900/70">
-        <div className="mx-auto flex max-w-5xl flex-col gap-2 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-sky-400">Potilastieto</p>
-            <h1 className="text-lg font-bold">Potilastietojärjestelmä</h1>
+        <div className="mx-auto flex max-w-5xl flex-col gap-4 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-sky-400">Potilastieto</p>
+              <h1 className="text-lg font-bold">Potilastietojärjestelmä</h1>
+            </div>
+            <nav aria-label="Päävalikko">
+              <ul className="flex flex-wrap gap-2 text-sm">
+                {navigationLinks.map((link) => (
+                  <li key={link.to}>
+                    <NavLink to={link.to} className={linkClasses} end={link.to === '/start'}>
+                      {link.label}
+                    </NavLink>
+                  </li>
+                ))}
+              </ul>
+            </nav>
           </div>
           <div className="flex items-center justify-between gap-4 text-sm">
             {session?.username && (
