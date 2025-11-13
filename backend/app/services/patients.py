@@ -26,6 +26,7 @@ from app.schemas.patient import (
     PatientRead,
     PatientSummary,
     PatientUpdate,
+    PatientVisitSummary,
 )
 from app.services import audit
 from app.services.audit_policy import ensure_patient_metadata, make_patient_reference
@@ -85,6 +86,11 @@ def _build_patient_read(session: Session, patient: Patient) -> PatientRead:
         .where(PatientHistory.patient_id == patient.id)
         .order_by(PatientHistory.changed_at.desc())
     ).all()
+    visits = session.exec(
+        select(Visit)
+        .where(Visit.patient_id == patient.id)
+        .order_by(Visit.started_at.desc(), Visit.created_at.desc())
+    ).all()
     return PatientRead(
         id=patient.id,
         identifier=patient.identifier,
@@ -130,6 +136,21 @@ def _build_patient_read(session: Session, patient: Patient) -> PatientRead:
             )
             for history in history_entries
         ],
+        visits=[
+            PatientVisitSummary(
+                id=visit.id,
+                visit_type=visit.visit_type,
+                reason=visit.reason,
+                status=visit.status,
+                location=visit.location,
+                started_at=visit.started_at,
+                ended_at=visit.ended_at,
+                created_at=visit.created_at,
+                updated_at=visit.updated_at,
+            )
+            for visit in visits
+        ],
+        visit_count=len(visits),
     )
 
 

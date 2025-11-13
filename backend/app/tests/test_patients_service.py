@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
+from typing import Dict
 
 import pytest
 from pydantic import ValidationError
@@ -20,6 +21,7 @@ from app.services import (
     PatientNotFoundError,
     archive_patient,
     create_patient,
+    get_patient,
     patch_patient,
     merge_patients,
     restore_patient,
@@ -459,3 +461,48 @@ def test_restore_patient_reactivates_and_logs_reason(session: Session) -> None:
     patient_row = session.get(Patient, patient.id)
     assert patient_row is not None
     assert patient_row.status == "active"
+
+
+def test_get_patient_includes_sorted_visit_summaries(session: Session) -> None:
+    created_patient = create_patient(
+        session,
+        data=PatientCreate(
+            identifier="131052-308T",
+            first_name="Visit",
+            last_name="Tester",
+        ),
+        actor_id=1,
+        context={},
+    )
+
+    visit_specs = [
+        ("triage", datetime(2024, 4, 30, 8, 30)),
+        ("intake", datetime(2024, 5, 2, 9, 0)),
+        ("checkup", datetime(2024, 5, 3, 11, 0)),
+        ("follow_up", datetime(2024, 5, 4, 10, 0)),
+    ]
+
+    labels_by_id: Dict[int, str] = {}
+    for label, start_time in visit_specs:
+        visit = Visit(
+            patient_id=created_patient.id,
+            visit_type="outpatient",
+            reason=f"{label} reason",
+            status="completed",
+            location="Room 1",
+            started_at=start_time,
+            ended_at=start_time,
+        )
+        session.add(visit)
+        session.flush()
+        labels_by_id[visit.id] = label
+
+    session.commit()
+
+    patient_read = get_patient(session, created_patient.id)
+
+    assert patient_read.visit_count == len(visit_specs)
+    assert len(patient_read.visits) == len(visit_specs)
+
+    ordered_labels = [labels_by_id[visit.id] for visit in patient_read.visits[:3]]
+    assert ordered_labels == ["follow_up", "checkup", "intake"]

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from typing import Dict
 
 import pytest
@@ -14,7 +14,7 @@ from sqlmodel import Session, select
 from app.core.config import settings
 from app.db.session import engine, init_db
 from app.main import app
-from app.models import AuditEvent, Role, User
+from app.models import AuditEvent, Role, User, Visit
 from app.schemas import PatientCreate
 from app.services import create_patient, ensure_seed_data, security
 
@@ -119,6 +119,48 @@ def test_billing_role_can_view_patients(api_test_context: Dict[str, object]) -> 
     )
     assert detail_response.status_code == 200
     assert detail_response.json()["id"] == api_test_context["patient_id"]
+
+
+def test_patient_detail_returns_visit_summaries(api_test_context: Dict[str, object]) -> None:
+    patient_id = api_test_context["patient_id"]
+    visit_specs = [
+        ("triage", datetime(2024, 4, 30, 8, 30)),
+        ("intake", datetime(2024, 5, 2, 9, 0)),
+        ("checkup", datetime(2024, 5, 3, 11, 0)),
+        ("follow_up", datetime(2024, 5, 4, 10, 0)),
+    ]
+
+    with Session(engine) as session:
+        for label, start_time in visit_specs:
+            session.add(
+                Visit(
+                    patient_id=patient_id,
+                    visit_type="outpatient",
+                    reason=f"{label} reason",
+                    status="completed",
+                    location="Room 1",
+                    started_at=start_time,
+                    ended_at=start_time,
+                )
+            )
+        session.commit()
+
+    client: TestClient = api_test_context["client"]
+    token = _login(client, api_test_context["doctor_username"], api_test_context["doctor_password"])
+    headers = {"Authorization": f"Bearer {token}"}
+
+    detail_response = client.get(
+        f"/api/v1/patients/{patient_id}",
+        headers=headers,
+    )
+
+    assert detail_response.status_code == 200
+    payload = detail_response.json()
+    assert payload["visit_count"] == len(visit_specs)
+    assert len(payload["visits"]) == len(visit_specs)
+
+    reasons = [visit["reason"] for visit in payload["visits"][:3]]
+    assert reasons == ["follow_up reason", "checkup reason", "intake reason"]
 
 
 def test_patient_list_audit_metadata(api_test_context: Dict[str, object]) -> None:

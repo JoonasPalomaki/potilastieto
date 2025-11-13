@@ -214,6 +214,18 @@ class PatientUpdate(PatientBase):
     reason: Optional[str] = None
 
 
+class PatientVisitSummary(BaseModel):
+    id: int
+    visit_type: Optional[str] = None
+    reason: Optional[str] = None
+    status: str
+    location: Optional[str] = None
+    started_at: Optional[datetime] = None
+    ended_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
+
+
 class PatientRead(PatientBase):
     id: int
     created_at: datetime
@@ -222,6 +234,8 @@ class PatientRead(PatientBase):
     consents: List[ConsentRead] = Field(default_factory=list)
     contacts: List[PatientContactRead] = Field(default_factory=list)
     history: List[PatientHistoryRead] = Field(default_factory=list)
+    visits: List[PatientVisitSummary] = Field(default_factory=list)
+    visit_count: int = 0
 
 
 class PatientSummary(BaseModel):
