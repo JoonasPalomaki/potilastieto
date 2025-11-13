@@ -195,6 +195,50 @@ Billing users have read-only access to patient data (list and detail). Write ope
 ### DELETE `/api/v1/appointments/{appointment_id}`
 - **Description**: Hard delete disabled; this endpoint returns `405 Method Not Allowed` to keep audit trail intact. Admins should use cancel or archive patterns.
 
+## `/api/v1/visits`
+
+### GET `/api/v1/visits/{visit_id}`
+- **Description**: Fetch a single visit with basics, reason, anamnesis, status, diagnoses, orders, and summary panels populated from notes and orders.
+- **Roles**: doctor.
+- **Responses**:
+  - `200 OK`: `InitialVisitRead` payload.
+  - `404 Not Found`: Visit id is invalid.
+
+### POST `/api/v1/visits`
+- **Description**: Create an initial visit either from an appointment or directly for a patient when no appointment exists.
+- **Roles**: doctor.
+- **Request Body**:
+  - `appointment_id` *(optional)*: When supplied, visit metadata defaults to the appointment slot and provider.
+  - `patient_id` *(optional)*: When `appointment_id` is omitted you must provide the patient id so the visit can be associated. One of these identifiers is required.
+  - `basics`, `reason`, `anamnesis`, `status`, `diagnoses`, `orders`, `summary`: Same panel payloads as exposed via the visit update routes. When creating directly via `patient_id`, include the necessary `basics` fields (location, visit_type, timing, provider) and reason text explicitly because there is no appointment to fall back to.
+- **Example (appointment driven)**:
+  ```json
+  {
+    "appointment_id": 42,
+    "basics": {"location": "Room 201"},
+    "reason": {"reason": "Päänsärky"}
+  }
+  ```
+- **Example (patient only)**:
+  ```json
+  {
+    "patient_id": 5,
+    "basics": {
+      "visit_type": "initial",
+      "location": "Room 3",
+      "started_at": "2024-05-10T09:00:00Z",
+      "ended_at": "2024-05-10T09:45:00Z",
+      "attending_provider_id": 12
+    },
+    "reason": {"reason": "Kontrollikäynti"}
+  }
+  ```
+- **Responses**:
+  - `201 Created`: Returns the assembled `InitialVisitRead` structure and records a `visit.create` audit event referencing the patient.
+  - `404 Not Found`: Appointment or patient id is invalid.
+  - `409 Conflict`: Visit already exists for the appointment.
+  - `422 Unprocessable Entity`: Neither identifier supplied or payload fails validation.
+
 ## `/api/v1/auth`
 
 ### POST `/api/v1/auth/login`

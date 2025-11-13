@@ -4,7 +4,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class VisitBase(BaseModel):
@@ -243,7 +243,8 @@ class InitialVisitRead(BaseModel):
 
 
 class InitialVisitCreate(BaseModel):
-    appointment_id: int
+    appointment_id: Optional[int] = None
+    patient_id: Optional[int] = None
     basics: Optional[VisitBasicsPanelBase] = None
     reason: Optional[VisitReasonPanelUpdate] = None
     anamnesis: Optional[VisitNarrativePanelUpdate] = None
@@ -251,6 +252,12 @@ class InitialVisitCreate(BaseModel):
     diagnoses: Optional[VisitDiagnosesPanelUpdate] = None
     orders: Optional[VisitOrdersPanelUpdate] = None
     summary: Optional[VisitNarrativePanelUpdate] = None
+
+    @model_validator(mode="after")
+    def validate_identifiers(cls, values: "InitialVisitCreate") -> "InitialVisitCreate":
+        if values.appointment_id is None and values.patient_id is None:
+            raise ValueError("Vähintään yksi tunniste (appointment_id tai patient_id) on annettava")
+        return values
 
 
 class VisitBasicsPanelUpdate(VisitBasicsPanelBase):

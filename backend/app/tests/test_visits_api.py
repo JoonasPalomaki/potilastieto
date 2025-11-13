@@ -168,6 +168,61 @@ def test_create_visit_success(visit_api_context: Dict[str, object]) -> None:
     assert events[0].metadata_json.get("patient_ref") == f"patient:{visit_api_context['patient_id']}"
 
 
+def test_create_visit_with_patient_identifier(visit_api_context: Dict[str, object]) -> None:
+    client: TestClient = visit_api_context["client"]
+    token = _login(client, visit_api_context["doctor_username"], visit_api_context["doctor_password"])
+    headers = {"Authorization": f"Bearer {token}"}
+
+    payload = {
+        "patient_id": visit_api_context["patient_id"],
+        "basics": {"location": "Huone 4", "visit_type": "initial"},
+        "reason": {"reason": "Kontrollikäynti"},
+    }
+
+    response = client.post("/api/v1/visits", headers=headers, json=payload)
+    assert response.status_code == status.HTTP_201_CREATED
+    body = response.json()
+
+    assert body["appointment_id"] is None
+    assert body["patient_id"] == visit_api_context["patient_id"]
+    assert body["basics"]["location"] == "Huone 4"
+
+    with Session(engine) as session:
+        events = session.exec(
+            select(AuditEvent).where(AuditEvent.action == "visit.create")
+        ).all()
+
+    assert len(events) == 1
+    assert events[0].metadata_json.get("patient_ref") == f"patient:{visit_api_context['patient_id']}"
+
+
+def test_create_visit_requires_identifier(visit_api_context: Dict[str, object]) -> None:
+    client: TestClient = visit_api_context["client"]
+    token = _login(client, visit_api_context["doctor_username"], visit_api_context["doctor_password"])
+    headers = {"Authorization": f"Bearer {token}"}
+
+    response = client.post("/api/v1/visits", headers=headers, json={"reason": {"reason": "Test"}})
+
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+
+def test_create_visit_patient_not_found(visit_api_context: Dict[str, object]) -> None:
+    client: TestClient = visit_api_context["client"]
+    token = _login(client, visit_api_context["doctor_username"], visit_api_context["doctor_password"])
+    headers = {"Authorization": f"Bearer {token}"}
+
+    payload = {
+        "patient_id": 999999,
+        "basics": {"location": "Huone 5"},
+        "reason": {"reason": "Test"},
+    }
+
+    response = client.post("/api/v1/visits", headers=headers, json=payload)
+
+    assert response.status_code == status.HTTP_404_NOT_FOUND
+    assert response.json()["detail"] == "Potilasta ei löydy"
+
+
 def test_anamnesis_requires_content(visit_api_context: Dict[str, object]) -> None:
     client: TestClient = visit_api_context["client"]
     token = _login(client, visit_api_context["doctor_username"], visit_api_context["doctor_password"])
