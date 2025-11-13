@@ -58,8 +58,8 @@ def _visit_conflict(exc: VisitConflictError) -> HTTPException:
 @router.get("/{visit_id}", response_model=InitialVisitRead)
 def read_visit(
     visit_id: int,
-    session: Session = Depends(get_db),
     current: VisitAuthorizedUser,
+    session: Session = Depends(get_db),
     context: dict = Depends(get_audit_context),
 ) -> InitialVisitRead:
     try:
@@ -76,8 +76,8 @@ def read_visit(
 @router.post("/", response_model=InitialVisitRead, status_code=status.HTTP_201_CREATED)
 def create_visit(
     payload: InitialVisitCreate,
-    session: Session = Depends(get_db),
     current: VisitAuthorizedUser,
+    session: Session = Depends(get_db),
     context: dict = Depends(get_audit_context),
 ) -> InitialVisitRead:
     try:
@@ -99,8 +99,8 @@ def create_visit(
 def update_basics(
     visit_id: int,
     payload: VisitBasicsPanelUpdate,
-    session: Session = Depends(get_db),
     current: VisitAuthorizedUser,
+    session: Session = Depends(get_db),
     context: dict = Depends(get_audit_context),
 ) -> VisitBasicsPanelRead:
     try:
@@ -119,8 +119,8 @@ def update_basics(
 def update_reason(
     visit_id: int,
     payload: VisitReasonPanelUpdate,
-    session: Session = Depends(get_db),
     current: VisitAuthorizedUser,
+    session: Session = Depends(get_db),
     context: dict = Depends(get_audit_context),
 ) -> VisitReasonPanelRead:
     try:
@@ -139,8 +139,8 @@ def update_reason(
 def update_anamnesis(
     visit_id: int,
     payload: VisitNarrativePanelUpdate,
-    session: Session = Depends(get_db),
     current: VisitAuthorizedUser,
+    session: Session = Depends(get_db),
     context: dict = Depends(get_audit_context),
 ) -> VisitNarrativePanelRead:
     try:
@@ -159,8 +159,8 @@ def update_anamnesis(
 def update_status(
     visit_id: int,
     payload: VisitNarrativePanelUpdate,
-    session: Session = Depends(get_db),
     current: VisitAuthorizedUser,
+    session: Session = Depends(get_db),
     context: dict = Depends(get_audit_context),
 ) -> VisitNarrativePanelRead:
     try:
@@ -179,8 +179,8 @@ def update_status(
 def update_diagnoses(
     visit_id: int,
     payload: VisitDiagnosesPanelUpdate,
-    session: Session = Depends(get_db),
     current: VisitAuthorizedUser,
+    session: Session = Depends(get_db),
     context: dict = Depends(get_audit_context),
 ) -> VisitDiagnosesPanelRead:
     try:
@@ -199,8 +199,8 @@ def update_diagnoses(
 def update_orders(
     visit_id: int,
     payload: VisitOrdersPanelUpdate,
-    session: Session = Depends(get_db),
     current: VisitAuthorizedUser,
+    session: Session = Depends(get_db),
     context: dict = Depends(get_audit_context),
 ) -> VisitOrdersPanelRead:
     try:
@@ -219,8 +219,8 @@ def update_orders(
 def update_summary(
     visit_id: int,
     payload: VisitNarrativePanelUpdate,
-    session: Session = Depends(get_db),
     current: VisitAuthorizedUser,
+    session: Session = Depends(get_db),
     context: dict = Depends(get_audit_context),
 ) -> VisitSummaryPanelRead:
     try:
