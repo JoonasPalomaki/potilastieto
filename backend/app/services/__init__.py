@@ -20,6 +20,11 @@ from app.services.auth import (
     rotate_refresh_token,
 )
 from app.services.background import start_background_services, stop_background_services
+from app.services.diagnosis_codes import (
+    DiagnosisCodeImportResult,
+    import_diagnosis_codes,
+    search_diagnosis_codes,
+)
 from app.services.patients import (
     PatientConflictError,
     PatientIdentifierLockedError,
@@ -54,6 +59,7 @@ from app.services.visits import (
 
 __all__ = [
     "audit",
+    "DiagnosisCodeImportResult",
     "AuthenticationError",
     "RefreshTokenError",
     "PatientNotFoundError",
@@ -84,6 +90,8 @@ __all__ = [
     "get_appointment",
     "list_appointments",
     "search_availability",
+    "import_diagnosis_codes",
+    "search_diagnosis_codes",
     "start_background_services",
     "stop_background_services",
     "VisitNotFoundError",

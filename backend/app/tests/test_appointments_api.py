@@ -34,6 +34,7 @@ def appointment_api_context() -> Dict[str, object]:
         session.exec(text("DELETE FROM appointment_status_history"))
         session.exec(text("DELETE FROM appointments"))
         session.exec(text("DELETE FROM audit_events"))
+        session.exec(text("DELETE FROM diagnosis_codes"))
         session.exec(text("DELETE FROM patient_contacts"))
         session.exec(text("DELETE FROM consents"))
         session.exec(text("DELETE FROM patients"))

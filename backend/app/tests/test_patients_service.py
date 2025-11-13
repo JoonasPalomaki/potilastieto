@@ -34,6 +34,7 @@ def prepare_database() -> None:
     init_db()
     with Session(engine) as session:
         session.exec(text("DELETE FROM audit_events"))
+        session.exec(text("DELETE FROM diagnosis_codes"))
         session.exec(text("DELETE FROM lab_results"))
         session.exec(text("DELETE FROM orders"))
         session.exec(text("DELETE FROM clinical_notes"))

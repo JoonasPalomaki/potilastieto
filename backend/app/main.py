@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api.v1 import appointments, auth, audit, patients, visits
+from app.api.v1 import appointments, auth, audit, diagnosis_codes, patients, visits
 from app.core.config import settings
 from app.db.session import get_session, init_db
 from app.services import ensure_seed_data, start_background_services, stop_background_services
@@ -47,6 +47,7 @@ app.include_router(patients.router, prefix="/api/v1")
 app.include_router(appointments.router, prefix="/api/v1")
 app.include_router(audit.router, prefix="/api/v1")
 app.include_router(visits.router, prefix="/api/v1")
+app.include_router(diagnosis_codes.router, prefix="/api/v1")
 
 
 build_path = Path(settings.frontend_build_path).resolve()
