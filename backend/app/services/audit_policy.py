@@ -42,6 +42,15 @@ RESOURCE_METADATA_KEYS: Dict[str, Set[str]] = {
         "appointment_id",
         "panel",
     },
+    "diagnosis_code": {
+        "filename",
+        "total_rows",
+        "inserted",
+        "updated",
+        "marked_deleted",
+        "skipped",
+        "error_count",
+    },
 }
 
 ACTION_METADATA_KEYS: Dict[str, Set[str]] = {

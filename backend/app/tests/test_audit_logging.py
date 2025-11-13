@@ -27,6 +27,7 @@ def session() -> Session:
             "orders",
             "clinical_notes",
             "lab_results",
+            "diagnosis_codes",
             "patient_history",
             "consents",
             "patient_contacts",
@@ -204,6 +205,28 @@ def test_audit_rejects_direct_hetu_metadata(session: Session) -> None:
             metadata={"identifier": "131052-308T"},
             context={},
         )
+
+
+def test_diagnosis_import_metadata_allowed(session: Session) -> None:
+    doctor = _create_user(session, "doctor", "doctor-import")
+
+    audit.record_event(
+        session,
+        actor_id=doctor.id,
+        action="diagnosis_code.import",
+        resource_type="diagnosis_code",
+        resource_id=None,
+        metadata={
+            "filename": "codes.csv",
+            "total_rows": 2,
+            "inserted": 2,
+            "updated": 0,
+            "marked_deleted": 1,
+            "skipped": 0,
+            "error_count": 0,
+        },
+        context={"request_id": "diag-test"},
+    )
 
 
 def test_audit_rejects_unapproved_metadata_key(session: Session) -> None:

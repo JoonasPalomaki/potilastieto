@@ -33,6 +33,7 @@ def audit_api_context() -> Dict[str, object]:
             "orders",
             "clinical_notes",
             "lab_results",
+            "diagnosis_codes",
             "patient_history",
             "consents",
             "patient_contacts",
