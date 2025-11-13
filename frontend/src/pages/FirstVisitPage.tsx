@@ -6,6 +6,7 @@ import {
   ApiError,
   AppointmentDetail,
   InitialVisit,
+  InitialVisitCreateRequest,
   PatientCreateRequest,
   PatientDetail,
   VisitDiagnosesUpdate,
@@ -160,6 +161,15 @@ const FirstVisitPage = ({ service = visitService }: { service?: VisitService }) 
     return Number.isNaN(parsed) ? null : parsed;
   }, [searchParams]);
 
+  const patientIdFromParams = useMemo(() => {
+    const value = searchParams.get('patientId');
+    if (!value) {
+      return null;
+    }
+    const parsed = Number(value);
+    return Number.isNaN(parsed) ? null : parsed;
+  }, [searchParams]);
+
   const authorization = useMemo(() => {
     if (!session) {
       return null;
@@ -168,6 +178,20 @@ const FirstVisitPage = ({ service = visitService }: { service?: VisitService }) 
   }, [session]);
 
   const needsPatientForm = useMemo(() => !patient && !createdPatientId, [patient, createdPatientId]);
+
+  const patientSelectionBaseUrl = useMemo(() => {
+    const currentPath = `${location.pathname}${location.search}` || '/first-visit';
+    const encodedReturnTo = encodeURIComponent(currentPath);
+    return `/patients?select=first-visit&returnTo=${encodedReturnTo}`;
+  }, [location.pathname, location.search]);
+
+  const handleSelectPatientFromList = useCallback(() => {
+    navigate(patientSelectionBaseUrl);
+  }, [navigate, patientSelectionBaseUrl]);
+
+  const handleCreatePatientFromList = useCallback(() => {
+    navigate(`${patientSelectionBaseUrl}&create=1`);
+  }, [navigate, patientSelectionBaseUrl]);
 
   const registerFieldRef = useCallback(
     (key: string) => (element: HTMLInputElement | HTMLTextAreaElement | null) => {
@@ -225,58 +249,78 @@ const FirstVisitPage = ({ service = visitService }: { service?: VisitService }) 
     const controller = new AbortController();
 
     const load = async () => {
-      if (!visitId && !appointmentIdFromParams) {
-        setLoadError('Ajanvarauksen tai ensikäynnin tunnistetta ei annettu.');
+      const shouldLoad =
+        visitId !== null || appointmentIdFromParams !== null || patientIdFromParams !== null;
+
+      if (!shouldLoad) {
+        setVisit(null);
+        setAppointment(null);
+        setPatient(null);
+        setLoadError(null);
         return;
       }
 
       setIsLoading(true);
       setLoadError(null);
 
+      let lastResource: 'visit' | 'appointment' | 'patient' | null = null;
+
       try {
+        let nextAppointment: AppointmentDetail | null = null;
+        let patientIdToLoad: number | null = null;
+
         if (visitId) {
+          lastResource = 'visit';
           const visitData = await service.getInitialVisit(visitId, {
             authorization,
             signal: controller.signal,
           });
           setVisit(visitData);
           applyVisitToForm(visitData);
+          patientIdToLoad = visitData.patient_id ?? null;
 
           if (visitData.appointment_id) {
-            const appointmentData = await service.getAppointment(visitData.appointment_id, {
+            lastResource = 'appointment';
+            nextAppointment = await service.getAppointment(visitData.appointment_id, {
               authorization,
               signal: controller.signal,
             });
-            setAppointment(appointmentData);
-            applyAppointmentToForm(appointmentData);
-            if (appointmentData.patient_id) {
-              const patientData = await service.getPatient(appointmentData.patient_id, {
-                authorization,
-                signal: controller.signal,
-              });
-              setPatient(patientData);
-            }
-          } else if (visitData.patient_id) {
-            const patientData = await service.getPatient(visitData.patient_id, {
-              authorization,
-              signal: controller.signal,
-            });
-            setPatient(patientData);
+            applyAppointmentToForm(nextAppointment);
+            patientIdToLoad = nextAppointment.patient_id ?? patientIdToLoad;
+          } else {
+            nextAppointment = null;
           }
-        } else if (appointmentIdFromParams) {
-          const appointmentData = await service.getAppointment(appointmentIdFromParams, {
+        } else {
+          setVisit(null);
+
+          if (appointmentIdFromParams) {
+            lastResource = 'appointment';
+            nextAppointment = await service.getAppointment(appointmentIdFromParams, {
+              authorization,
+              signal: controller.signal,
+            });
+            applyAppointmentToForm(nextAppointment);
+            patientIdToLoad = nextAppointment.patient_id ?? null;
+          } else {
+            nextAppointment = null;
+          }
+        }
+
+        setAppointment(nextAppointment);
+
+        if (patientIdFromParams) {
+          patientIdToLoad = patientIdFromParams;
+        }
+
+        if (patientIdToLoad) {
+          lastResource = 'patient';
+          const patientData = await service.getPatient(patientIdToLoad, {
             authorization,
             signal: controller.signal,
           });
-          setAppointment(appointmentData);
-          applyAppointmentToForm(appointmentData);
-          if (appointmentData.patient_id) {
-            const patientData = await service.getPatient(appointmentData.patient_id, {
-              authorization,
-              signal: controller.signal,
-            });
-            setPatient(patientData);
-          }
+          setPatient(patientData);
+        } else {
+          setPatient(null);
         }
       } catch (error) {
         if (controller.signal.aborted) {
@@ -287,7 +331,13 @@ const FirstVisitPage = ({ service = visitService }: { service?: VisitService }) 
           return;
         }
         if (error instanceof ApiError && error.status === 404) {
-          setLoadError('Ensikäyntiä ei löytynyt.');
+          if (lastResource === 'patient') {
+            setLoadError('Potilasta ei löytynyt.');
+          } else if (lastResource === 'appointment') {
+            setLoadError('Ajanvarausta ei löytynyt.');
+          } else {
+            setLoadError('Ensikäyntiä ei löytynyt.');
+          }
         } else {
           setLoadError('Ensikäynnin tietojen hakeminen epäonnistui.');
         }
@@ -309,6 +359,7 @@ const FirstVisitPage = ({ service = visitService }: { service?: VisitService }) 
     applyVisitToForm,
     authorization,
     handleUnauthorized,
+    patientIdFromParams,
     service,
     visitId,
   ]);
@@ -428,10 +479,6 @@ const FirstVisitPage = ({ service = visitService }: { service?: VisitService }) 
     }
 
     const appointmentId = visit?.appointment_id ?? appointment?.id ?? appointmentIdFromParams;
-    if (!appointmentId) {
-      setSaveError('Ajanvarausta ei ole valittu.');
-      return;
-    }
 
     setIsSaving(true);
 
@@ -468,8 +515,8 @@ const FirstVisitPage = ({ service = visitService }: { service?: VisitService }) 
           : undefined,
       };
 
-      const visitPayload = {
-        appointment_id: appointmentId,
+      const visitPayload: InitialVisitCreateRequest = {
+        patient_id: activePatient.id,
         basics,
         reason: { reason: formState.reason.trim() },
         anamnesis: { content: formState.anamnesis.trim() },
@@ -478,6 +525,10 @@ const FirstVisitPage = ({ service = visitService }: { service?: VisitService }) 
         orders: buildOrdersPayload(),
         summary: { content: formState.summary.trim() },
       };
+
+      if (appointmentId) {
+        visitPayload.appointment_id = appointmentId;
+      }
 
       const savedVisit = await service.createInitialVisit(visitPayload, { authorization });
       setVisit(savedVisit);
@@ -566,6 +617,22 @@ const FirstVisitPage = ({ service = visitService }: { service?: VisitService }) 
               <p id="patient-panel" className="text-sm text-slate-400">
                 Tarkista potilaan perustiedot ennen käynnin kirjaamista.
               </p>
+              <div className="flex flex-wrap gap-3 text-sm">
+                <button
+                  type="button"
+                  onClick={handleSelectPatientFromList}
+                  className="rounded-md border border-slate-700 px-3 py-1.5 font-medium text-slate-100 transition hover:border-sky-400 hover:text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+                >
+                  Valitse potilas
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreatePatientFromList}
+                  className="rounded-md border border-sky-500 bg-sky-600/80 px-3 py-1.5 font-medium text-white transition hover:bg-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                >
+                  Lisää uusi potilas
+                </button>
+              </div>
               {patient ? (
                 <dl className="divide-y divide-slate-800 text-sm text-slate-200">
                   <div className="flex items-center justify-between py-2">
