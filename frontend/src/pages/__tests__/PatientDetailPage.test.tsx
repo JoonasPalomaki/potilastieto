@@ -18,6 +18,7 @@ const createSession = () => ({
   tokenType: 'Bearer',
   expiresAt: Date.now() + 60_000,
   username: 'Testikäyttäjä',
+  role: 'user',
 });
 
 const createServiceMock = (patient: PatientDetail): VisitService => {

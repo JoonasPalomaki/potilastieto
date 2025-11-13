@@ -16,10 +16,13 @@ const linkClasses = ({ isActive }: { isActive: boolean }) =>
       : 'border border-transparent text-slate-200 hover:border-slate-700 hover:bg-slate-800/80',
   ].join(' ');
 
+const adminNavigationLinks = [{ to: '/admin/diagnosis-codes', label: 'Diagnoosikoodit' }];
+
 const ProtectedLayout = () => {
   const { isAuthenticated, initializing, logout, session } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const isAdmin = session?.role === 'admin';
 
   const handleLogout = () => {
     logout();
@@ -58,6 +61,19 @@ const ProtectedLayout = () => {
                 ))}
               </ul>
             </nav>
+            {isAdmin && (
+              <nav aria-label="Ylläpito">
+                <ul className="flex flex-wrap gap-2 text-sm">
+                  {adminNavigationLinks.map((link) => (
+                    <li key={link.to}>
+                      <NavLink to={link.to} className={linkClasses}>
+                        {link.label}
+                      </NavLink>
+                    </li>
+                  ))}
+                </ul>
+              </nav>
+            )}
           </div>
           <div className="flex items-center justify-between gap-4 text-sm">
             {session?.username && (

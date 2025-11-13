@@ -17,6 +17,7 @@ const createSession = () => ({
   tokenType: 'Bearer',
   expiresAt: Date.now() + 1000 * 60,
   username: 'Testikäyttäjä',
+  role: 'user',
 });
 
 const renderWithRouter = (initialPath = '/start') => {
@@ -48,6 +49,7 @@ describe('ProtectedLayout navigation', () => {
 
     const navigation = screen.getByRole('navigation', { name: /päävalikko/i });
     expect(navigation).toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: /ylläpito/i })).not.toBeInTheDocument();
 
     const startLink = screen.getByRole('link', { name: 'Aloitussivu' });
     const patientsLink = screen.getByRole('link', { name: 'Potilaslista' });
@@ -70,5 +72,21 @@ describe('ProtectedLayout navigation', () => {
     await user.click(screen.getByRole('link', { name: 'Ensikäynti' }));
     expect(screen.getByText('Ensikäynnin sisältö')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Ensikäynti' })).toHaveAttribute('aria-current', 'page');
+  });
+
+  it('gates the admin navigation by role', () => {
+    mockedUseAuth.mockReturnValue({
+      initializing: false,
+      isAuthenticated: true,
+      logout: vi.fn(),
+      session: { ...createSession(), role: 'admin' },
+    });
+
+    renderWithRouter();
+
+    const adminNav = screen.getByRole('navigation', { name: /ylläpito/i });
+    expect(adminNav).toBeInTheDocument();
+    const adminLink = screen.getByRole('link', { name: 'Diagnoosikoodit' });
+    expect(adminLink).toHaveAttribute('href', '/admin/diagnosis-codes');
   });
 });
