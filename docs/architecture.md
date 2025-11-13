@@ -17,6 +17,7 @@ Functional focus areas and their key requirements:
   - `REQ-F-APPT-003` Peruutukset ja uudelleenajoitus
 - **Administration and access control** — `F-ADMIN`
   - `REQ-F-ADM-001` Roolit ja oikeudet
+  - `REQ-F-ADM-004` Diagnoosikoodien hallinta CSV-tuonnilla
 - **Security and audit trail** — `F-SEC`, `F-LEGAL`
   - `REQ-NF-SEC-001` Käyttäjätunnistus ja istunnot
   - `REQ-NF-SEC-002` Käyttöoikeusrajaukset tietotasolla
@@ -65,6 +66,7 @@ All components run on a single workstation. The backend exposes HTTP on `localho
 | Role | `id`, `code`, `name`, `permissions` | Role definitions for doctor, nurse, admin.
 | AuditEvent | `id`, `actor_id`, `action`, `resource_type`, `resource_id`, `timestamp`, `metadata`, `context` | Captures every read/write of patient data (`REQ-NF-SEC-003`).
 | TokenBlacklist (optional) | `id`, `jti`, `expires_at` | Allows future revocation of refresh tokens if required.
+| DiagnosisCode | `id`, `code`, `version`, `short_label`, `long_label`, `chapter`, `effective_from`, `effective_to`, `is_deleted`, timestamps | Lookup table for ICD/ICPC-style diagnosis codes maintained via CSV import. Codes remain immutable identifiers while label changes or end-of-life adjustments generate history rows. (`REQ-F-ADM-004`). |
 
 ### Relationships
 
@@ -151,6 +153,21 @@ sequenceDiagram
 - **Audit coverage**: Service layer automatically records read/write access to patient-linked resources (`REQ-NF-SEC-003`).
 - **Privacy by design**: Data minimisation is achieved by storing only necessary PII and enabling selective archival. Audit metadata stores hashed tokens instead of raw hetu values, and the redaction script `tools/redact_audit_metadata.py` cleans existing rows to comply with `REQ-NF-LEGAL-001` and `REQ-NF-LEGAL-002`.
 - **Local-first install**: All dependencies remain local-friendly and run via simple commands (`REQ-NF-ARCH-001`). Future migrations to PostgreSQL are facilitated by SQLModel compatibility.
+
+## Diagnosis Code Maintenance (`REQ-F-ADM-004`)
+
+- **Workflow**:
+  1. Admin downloads a CSV template (`code;short_label;long_label;chapter;effective_from;effective_to;delete_flag`) from the administration UI.
+  2. Updates or appends diagnosis rows offline. Codes remain uppercase, unique per version, and retain their identifier when only the labels change so downstream references stay stable.
+  3. Uploads the CSV via the "Diagnoosikoodit" screen. The backend parses the file in a streaming fashion, validates required columns, and stages rows in a temporary table.
+  4. A dry-run diff report lists inserts, updates, and rows flagged for logical deletion (`is_deleted = true`) and is shown to the admin before committing.
+  5. Once confirmed, the import transaction upserts `DiagnosisCode` entities and appends `AuditEvent` entries so patient visits, billing rules, and clinical documentation see the refreshed lookup immediately.
+
+- **UI constraints**:
+  - Available to the `admin` role only; other roles see a read-only dropdown fed by `/api/v1/diagnosis-codes` search results.
+  - Screen follows WCAG 2.2 AA colours/contrast and remains responsive from 1280×800 upwards, with split panes for CSV upload and diff preview as mandated by `F-ADMIN` accessibility notes.
+  - Inline validation enumerates CSV errors (missing column, invalid chapter code, overlapping effective dates) and blocks submission until fixed to avoid partial imports.
+  - Long-running imports display progress messaging but keep the UI stateless—re-running the same CSV is idempotent because unchanged rows are ignored and duplicates produce human-readable warnings instead of silent failures.
 
 ## Migration Workflow
 
