@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session
 
@@ -37,6 +39,10 @@ from app.services import (
 
 router = APIRouter(prefix="/visits", tags=["visits"])
 
+VisitAuthorizedUser = Annotated[
+    AuthenticatedUser, Depends(require_roles("doctor", "admin"))
+]
+
 
 def _visit_not_found() -> HTTPException:
     return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ensikäyntiä ei löydy")
@@ -53,7 +59,7 @@ def _visit_conflict(exc: VisitConflictError) -> HTTPException:
 def read_visit(
     visit_id: int,
     session: Session = Depends(get_db),
-    current: AuthenticatedUser = Depends(require_roles("doctor")),
+    current: VisitAuthorizedUser,
     context: dict = Depends(get_audit_context),
 ) -> InitialVisitRead:
     try:
@@ -71,7 +77,7 @@ def read_visit(
 def create_visit(
     payload: InitialVisitCreate,
     session: Session = Depends(get_db),
-    current: AuthenticatedUser = Depends(require_roles("doctor")),
+    current: VisitAuthorizedUser,
     context: dict = Depends(get_audit_context),
 ) -> InitialVisitRead:
     try:
@@ -94,7 +100,7 @@ def update_basics(
     visit_id: int,
     payload: VisitBasicsPanelUpdate,
     session: Session = Depends(get_db),
-    current: AuthenticatedUser = Depends(require_roles("doctor")),
+    current: VisitAuthorizedUser,
     context: dict = Depends(get_audit_context),
 ) -> VisitBasicsPanelRead:
     try:
@@ -114,7 +120,7 @@ def update_reason(
     visit_id: int,
     payload: VisitReasonPanelUpdate,
     session: Session = Depends(get_db),
-    current: AuthenticatedUser = Depends(require_roles("doctor")),
+    current: VisitAuthorizedUser,
     context: dict = Depends(get_audit_context),
 ) -> VisitReasonPanelRead:
     try:
@@ -134,7 +140,7 @@ def update_anamnesis(
     visit_id: int,
     payload: VisitNarrativePanelUpdate,
     session: Session = Depends(get_db),
-    current: AuthenticatedUser = Depends(require_roles("doctor")),
+    current: VisitAuthorizedUser,
     context: dict = Depends(get_audit_context),
 ) -> VisitNarrativePanelRead:
     try:
@@ -154,7 +160,7 @@ def update_status(
     visit_id: int,
     payload: VisitNarrativePanelUpdate,
     session: Session = Depends(get_db),
-    current: AuthenticatedUser = Depends(require_roles("doctor")),
+    current: VisitAuthorizedUser,
     context: dict = Depends(get_audit_context),
 ) -> VisitNarrativePanelRead:
     try:
@@ -174,7 +180,7 @@ def update_diagnoses(
     visit_id: int,
     payload: VisitDiagnosesPanelUpdate,
     session: Session = Depends(get_db),
-    current: AuthenticatedUser = Depends(require_roles("doctor")),
+    current: VisitAuthorizedUser,
     context: dict = Depends(get_audit_context),
 ) -> VisitDiagnosesPanelRead:
     try:
@@ -194,7 +200,7 @@ def update_orders(
     visit_id: int,
     payload: VisitOrdersPanelUpdate,
     session: Session = Depends(get_db),
-    current: AuthenticatedUser = Depends(require_roles("doctor")),
+    current: VisitAuthorizedUser,
     context: dict = Depends(get_audit_context),
 ) -> VisitOrdersPanelRead:
     try:
@@ -214,7 +220,7 @@ def update_summary(
     visit_id: int,
     payload: VisitNarrativePanelUpdate,
     session: Session = Depends(get_db),
-    current: AuthenticatedUser = Depends(require_roles("doctor")),
+    current: VisitAuthorizedUser,
     context: dict = Depends(get_audit_context),
 ) -> VisitSummaryPanelRead:
     try:
