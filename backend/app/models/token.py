@@ -4,12 +4,12 @@ from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import Column, JSON
-from sqlmodel import Field
+from sqlmodel import Field, SQLModel
 
 from app.models.base import TimestampMixin
 
 
-class RefreshToken(TimestampMixin, table=True):
+class RefreshToken(TimestampMixin, SQLModel, table=True):
     __tablename__ = "refresh_tokens"
 
     id: Optional[int] = Field(default=None, primary_key=True)

@@ -5,12 +5,12 @@ from decimal import Decimal
 from typing import Optional
 
 from sqlalchemy import Column, JSON, Numeric, Text
-from sqlmodel import Field
+from sqlmodel import Field, SQLModel
 
 from app.models.base import TimestampMixin
 
 
-class Visit(TimestampMixin, table=True):
+class Visit(TimestampMixin, SQLModel, table=True):
     __tablename__ = "visits"
 
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -25,7 +25,7 @@ class Visit(TimestampMixin, table=True):
     attending_provider_id: Optional[int] = Field(default=None, foreign_key="users.id")
 
 
-class ClinicalNote(TimestampMixin, table=True):
+class ClinicalNote(TimestampMixin, SQLModel, table=True):
     __tablename__ = "clinical_notes"
 
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -37,7 +37,7 @@ class ClinicalNote(TimestampMixin, table=True):
     content: str = Field(sa_column=Column(Text, nullable=False))
 
 
-class Order(TimestampMixin, table=True):
+class Order(TimestampMixin, SQLModel, table=True):
     __tablename__ = "orders"
 
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -53,7 +53,7 @@ class Order(TimestampMixin, table=True):
     placed_at: Optional[datetime] = Field(default=None)
 
 
-class LabResult(TimestampMixin, table=True):
+class LabResult(TimestampMixin, SQLModel, table=True):
     __tablename__ = "lab_results"
 
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -70,7 +70,7 @@ class LabResult(TimestampMixin, table=True):
     )
 
 
-class Invoice(TimestampMixin, table=True):
+class Invoice(TimestampMixin, SQLModel, table=True):
     __tablename__ = "invoices"
 
     id: Optional[int] = Field(default=None, primary_key=True)
