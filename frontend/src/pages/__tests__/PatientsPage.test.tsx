@@ -104,3 +104,51 @@ describe('PatientsPage selection mode', () => {
     fetchSpy.mockRestore();
   });
 });
+
+describe('PatientsPage default mode', () => {
+  beforeEach(() => {
+    mockedUseAuth.mockReturnValue({
+      initializing: false,
+      isAuthenticated: true,
+      login: vi.fn(),
+      logout: vi.fn(),
+      session: createSession(),
+    });
+  });
+
+  it('avaa potilaan tietonäkymän Näytä tiedot -painikkeesta', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        items: [{ id: 42, identifier: '123456-9999', name: 'Test Potilas', status: 'aktiivinen' }],
+      }),
+    } as unknown as Response);
+
+    render(
+      <MemoryRouter initialEntries={["/patients"]}>
+        <Routes>
+          <Route
+            path="/patients"
+            element={
+              <>
+                <PatientsPage />
+                <LocationDisplay />
+              </>
+            }
+          />
+          <Route path="/patients/:patientId" element={<LocationDisplay />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
+
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Näytä tiedot' }));
+
+    expect(await screen.findByTestId('location-display')).toHaveTextContent('/patients/42');
+
+    fetchSpy.mockRestore();
+  });
+});

@@ -4,6 +4,7 @@ import ProtectedLayout from './components/ProtectedLayout';
 import FirstVisitPage from './pages/FirstVisitPage';
 import LoginPage from './pages/LoginPage';
 import PatientCreatePage from './pages/PatientCreatePage';
+import PatientDetailPage from './pages/PatientDetailPage';
 import PatientsPage from './pages/PatientsPage';
 import StartPage from './pages/StartPage';
 
@@ -17,6 +18,7 @@ const App = () => {
           <Route path="/start" element={<StartPage />} />
           <Route path="/patients" element={<PatientsPage />} />
           <Route path="/patients/new" element={<PatientCreatePage />} />
+          <Route path="/patients/:patientId" element={<PatientDetailPage />} />
           <Route path="/first-visit" element={<FirstVisitPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/start" replace />} />

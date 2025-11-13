@@ -93,6 +93,56 @@ export interface AppointmentDetail {
   status: string;
 }
 
+export interface PatientAddress {
+  street?: string | null;
+  postal_code?: string | null;
+  city?: string | null;
+}
+
+export interface PatientContactInfo {
+  phone?: string | null;
+  email?: string | null;
+  address?: PatientAddress | null;
+}
+
+export interface PatientConsent {
+  id: number;
+  type: string;
+  status: string;
+  granted_at?: string | null;
+  revoked_at?: string | null;
+  notes?: string | null;
+}
+
+export interface PatientContact {
+  id: number;
+  name: string;
+  relationship?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  is_guardian?: boolean;
+}
+
+export interface PatientHistoryEntry {
+  id: number;
+  changed_at: string;
+  changed_by?: number | null;
+  change_type: string;
+  reason?: string | null;
+}
+
+export interface PatientVisitSummary {
+  id: number;
+  visit_type?: string | null;
+  reason?: string | null;
+  status: string;
+  location?: string | null;
+  started_at?: string | null;
+  ended_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface PatientDetail {
   id: number;
   identifier?: string | null;
@@ -100,7 +150,14 @@ export interface PatientDetail {
   last_name: string;
   date_of_birth?: string | null;
   sex?: string | null;
-  contact_info?: Record<string, unknown> | null;
+  language?: string | null;
+  status?: string | null;
+  contact_info?: PatientContactInfo | null;
+  consents?: PatientConsent[];
+  contacts?: PatientContact[];
+  history?: PatientHistoryEntry[];
+  visits: PatientVisitSummary[];
+  visit_count?: number;
 }
 
 export interface VisitBasicsUpdate {
