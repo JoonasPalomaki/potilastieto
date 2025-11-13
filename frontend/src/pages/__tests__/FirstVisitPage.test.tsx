@@ -55,6 +55,9 @@ const defaultPatient = {
   last_name: 'Esimerkki',
   date_of_birth: '1990-05-20',
   sex: 'female',
+  visits: [],
+  consents: [],
+  history: [],
 };
 
 const createVisitResponse = (overrides: Partial<InitialVisit> = {}): InitialVisit => ({

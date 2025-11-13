@@ -147,6 +147,16 @@ const PatientsPage = () => {
     [buildReturnUrl, navigate, selectionMode],
   );
 
+  const handlePatientDetails = useCallback(
+    (patientId?: number | null) => {
+      if (!patientId) {
+        return;
+      }
+      navigate(`/patients/${patientId}`);
+    },
+    [navigate],
+  );
+
   useEffect(() => {
     if (!session) {
       return;
@@ -275,14 +285,12 @@ const PatientsPage = () => {
                 <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
                   Tila
                 </th>
-                {selectionMode && (
-                  <th
-                    scope="col"
-                    className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-400"
-                  >
-                    Toiminnot
-                  </th>
-                )}
+                <th
+                  scope="col"
+                  className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-400"
+                >
+                  Toiminnot
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800 bg-slate-900/40">
@@ -291,8 +299,8 @@ const PatientsPage = () => {
                   <td className="px-4 py-3 text-sm font-medium text-slate-100">{patient.identifier}</td>
                   <td className="px-4 py-3 text-sm text-slate-200">{patient.name ?? '—'}</td>
                   <td className="px-4 py-3 text-sm text-slate-200">{patient.status ?? '—'}</td>
-                  {selectionMode && (
-                    <td className="px-4 py-3 text-right text-sm text-slate-200">
+                  <td className="px-4 py-3 text-right text-sm text-slate-200">
+                    {selectionMode ? (
                       <button
                         type="button"
                         onClick={() => handlePatientSelect(patient.id)}
@@ -301,8 +309,17 @@ const PatientsPage = () => {
                       >
                         Valitse
                       </button>
-                    </td>
-                  )}
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handlePatientDetails(patient.id)}
+                        disabled={!patient.id}
+                        className="rounded-md border border-slate-600 px-3 py-1.5 font-medium text-slate-100 transition hover:border-sky-400 hover:text-white focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Näytä tiedot
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
