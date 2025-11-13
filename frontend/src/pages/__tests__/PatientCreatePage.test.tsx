@@ -67,6 +67,10 @@ describe('PatientCreatePage', () => {
     await user.click(screen.getByRole('button', { name: 'Tallenna potilas' }));
 
     await waitFor(() => expect(createPatient).toHaveBeenCalled());
+    expect(createPatient).toHaveBeenCalledWith(
+      expect.objectContaining({ identifier: '123456-999A' }),
+      expect.anything(),
+    );
     expect(await screen.findByText(/Potilas lisättiin onnistuneesti/i)).toBeInTheDocument();
 
     vi.runAllTimers();
@@ -104,6 +108,37 @@ describe('PatientCreatePage', () => {
     );
   });
 
+  it('sallii potilaan luonnin ilman henkilötunnusta, kun demografiat on annettu', async () => {
+    vi.useFakeTimers();
+    const createPatient = vi.fn().mockResolvedValue({ id: 88 });
+    const service = { createPatient } as unknown as VisitService;
+
+    renderWithRouter(<PatientCreatePage service={service} />);
+
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText('Etunimi'), 'Demo');
+    await user.type(screen.getByLabelText('Sukunimi'), 'Testi');
+    await user.type(screen.getByLabelText('Syntymäaika'), '1990-05-01');
+    await user.selectOptions(screen.getByLabelText('Sukupuoli'), 'female');
+
+    await user.click(screen.getByRole('button', { name: 'Tallenna potilas' }));
+
+    await waitFor(() =>
+      expect(createPatient).toHaveBeenCalledWith(
+        expect.objectContaining({
+          date_of_birth: '1990-05-01',
+          sex: 'female',
+        }),
+        expect.anything(),
+      ),
+    );
+
+    vi.runAllTimers();
+    await waitFor(() =>
+      expect(screen.getByTestId('location-display')).toHaveTextContent('/patients'),
+    );
+  });
+
   it('näyttää validointivirheet eikä lähetä pyyntöä', async () => {
     const createPatient = vi.fn();
     const service = { createPatient } as unknown as VisitService;
@@ -113,9 +148,27 @@ describe('PatientCreatePage', () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Tallenna potilas' }));
 
-    expect(await screen.findByText('Henkilötunnus on pakollinen.')).toBeInTheDocument();
+    expect(await screen.findByText('Syntymäaika on pakollinen ilman henkilötunnusta.')).toBeInTheDocument();
+    expect(screen.getByText('Sukupuoli on pakollinen ilman henkilötunnusta.')).toBeInTheDocument();
     expect(screen.getByText('Etunimi on pakollinen.')).toBeInTheDocument();
     expect(screen.getByText('Sukunimi on pakollinen.')).toBeInTheDocument();
+    expect(createPatient).not.toHaveBeenCalled();
+  });
+
+  it('antaa palautteen virheellisestä henkilötunnuksesta', async () => {
+    const createPatient = vi.fn();
+    const service = { createPatient } as unknown as VisitService;
+
+    renderWithRouter(<PatientCreatePage service={service} />);
+
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText('Henkilötunnus'), '123');
+    await user.type(screen.getByLabelText('Etunimi'), 'Testi');
+    await user.type(screen.getByLabelText('Sukunimi'), 'Potilas');
+
+    await user.click(screen.getByRole('button', { name: 'Tallenna potilas' }));
+
+    expect(await screen.findByText('Henkilötunnuksen muoto on virheellinen.')).toBeInTheDocument();
     expect(createPatient).not.toHaveBeenCalled();
   });
 });
