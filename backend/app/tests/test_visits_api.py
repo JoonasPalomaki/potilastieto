@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import text
 from sqlmodel import Session, select
 
+from app.core.config import settings
 from app.db.session import engine, init_db
 from app.main import app
 from app.models import Appointment, AuditEvent, Role, User
@@ -62,6 +63,18 @@ def visit_api_context() -> Dict[str, object]:
         session.commit()
         session.refresh(doctor)
 
+        billing_role = session.exec(select(Role).where(Role.code == "billing")).one()
+        billing_password = "billingpass"
+        billing = User(
+            username="billingvisit",
+            password_hash=security.hash_password(billing_password),
+            display_name="Laskutus Kaynti",
+            role_id=billing_role.id,
+        )
+        session.add(billing)
+        session.commit()
+        session.refresh(billing)
+
         patient = create_patient(
             session,
             data=PatientCreate(
@@ -93,6 +106,10 @@ def visit_api_context() -> Dict[str, object]:
         context: Dict[str, object] = {
             "doctor_username": doctor.username,
             "doctor_password": doctor_password,
+            "admin_username": settings.first_superuser,
+            "admin_password": settings.first_superuser_password,
+            "billing_username": billing.username,
+            "billing_password": billing_password,
             "patient_id": patient.id,
             "appointment_id": appointment.id,
         }
@@ -273,3 +290,55 @@ def test_update_diagnoses_creates_audit_event(visit_api_context: Dict[str, objec
 
     assert events, "Expected audit event for diagnoses update"
     assert events[0].metadata_json.get("panel") == "diagnoses"
+
+
+def test_admin_can_create_and_update_visit(visit_api_context: Dict[str, object]) -> None:
+    client: TestClient = visit_api_context["client"]
+    token = _login(client, visit_api_context["admin_username"], visit_api_context["admin_password"])
+    headers = {"Authorization": f"Bearer {token}"}
+
+    visit_id = _create_visit(client, headers, visit_api_context)
+
+    response = client.put(
+        f"/api/v1/visits/{visit_id}/summary",
+        headers=headers,
+        json={"content": "Admin päivitti yhteenvedon."},
+    )
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json()["content"] == "Admin päivitti yhteenvedon."
+
+
+def test_billing_role_cannot_manage_visits(visit_api_context: Dict[str, object]) -> None:
+    client: TestClient = visit_api_context["client"]
+
+    doctor_token = _login(
+        client, visit_api_context["doctor_username"], visit_api_context["doctor_password"]
+    )
+    doctor_headers = {"Authorization": f"Bearer {doctor_token}"}
+    visit_id = _create_visit(client, doctor_headers, visit_api_context)
+
+    billing_token = _login(
+        client, visit_api_context["billing_username"], visit_api_context["billing_password"]
+    )
+    billing_headers = {"Authorization": f"Bearer {billing_token}"}
+
+    response = client.post(
+        "/api/v1/visits",
+        headers=billing_headers,
+        json={
+            "appointment_id": visit_api_context["appointment_id"],
+            "basics": {"location": "Huone 3"},
+            "reason": {"reason": "Test"},
+        },
+    )
+
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    response = client.put(
+        f"/api/v1/visits/{visit_id}/summary",
+        headers=billing_headers,
+        json={"content": "Ei pitäisi onnistua"},
+    )
+
+    assert response.status_code == status.HTTP_403_FORBIDDEN

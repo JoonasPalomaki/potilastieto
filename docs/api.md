@@ -199,14 +199,14 @@ Billing users have read-only access to patient data (list and detail). Write ope
 
 ### GET `/api/v1/visits/{visit_id}`
 - **Description**: Fetch a single visit with basics, reason, anamnesis, status, diagnoses, orders, and summary panels populated from notes and orders.
-- **Roles**: doctor.
+- **Roles**: doctor, admin.
 - **Responses**:
   - `200 OK`: `InitialVisitRead` payload.
   - `404 Not Found`: Visit id is invalid.
 
 ### POST `/api/v1/visits`
 - **Description**: Create an initial visit either from an appointment or directly for a patient when no appointment exists.
-- **Roles**: doctor.
+- **Roles**: doctor, admin.
 - **Request Body**:
   - `appointment_id` *(optional)*: When supplied, visit metadata defaults to the appointment slot and provider.
   - `patient_id` *(optional)*: When `appointment_id` is omitted you must provide the patient id so the visit can be associated. One of these identifiers is required.
