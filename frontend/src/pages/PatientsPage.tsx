@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import { config } from '../config';
 import { useAuth } from '../contexts/AuthContext';
@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 const sanitizeBaseUrl = (baseUrl: string) => baseUrl.replace(/\/$/, '');
 
 interface PatientListItem {
+  id?: number;
   identifier: string;
   name?: string | null;
   status?: string | null;
@@ -77,12 +78,52 @@ const normalizeMeta = (payload: PatientsResponse): PaginationMeta | null => {
 const PatientsPage = () => {
   const { session, logout } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [patients, setPatients] = useState<PatientListItem[]>([]);
   const [pagination, setPagination] = useState<PaginationMeta | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const apiBaseUrl = useMemo(() => sanitizeBaseUrl(config.apiBaseUrl), []);
+
+  const selectionMode = searchParams.get('select') === 'first-visit';
+  const selectionReturnToParam = searchParams.get('returnTo');
+  const selectionWantsCreation = selectionMode && searchParams.get('create') === '1';
+
+  const selectionReturnTo = useMemo(() => {
+    if (!selectionMode || !selectionReturnToParam) {
+      return '/first-visit';
+    }
+    try {
+      const decoded = decodeURIComponent(selectionReturnToParam);
+      return decoded || '/first-visit';
+    } catch (error) {
+      console.warn('Virhe palautusosoitteen purkamisessa', error);
+      return '/first-visit';
+    }
+  }, [selectionMode, selectionReturnToParam]);
+
+  const buildReturnUrl = useCallback(
+    (patientId: number) => {
+      const basePath = selectionReturnTo || '/first-visit';
+      const [pathname, query = ''] = basePath.split('?');
+      const params = new URLSearchParams(query);
+      params.set('patientId', String(patientId));
+      const queryString = params.toString();
+      return `${pathname}${queryString ? `?${queryString}` : ''}`;
+    },
+    [selectionReturnTo],
+  );
+
+  const handlePatientSelect = useCallback(
+    (patientId?: number | null) => {
+      if (!selectionMode || !patientId) {
+        return;
+      }
+      navigate(buildReturnUrl(patientId));
+    },
+    [buildReturnUrl, navigate, selectionMode],
+  );
 
   useEffect(() => {
     if (!session) {
@@ -146,18 +187,32 @@ const PatientsPage = () => {
             Tarkastele järjestelmään rekisteröityjen potilaiden perustietoja.
           </p>
         </div>
-        {pagination && (
-          <div className="rounded-md border border-slate-800 bg-slate-900 px-4 py-2 text-sm text-slate-300">
-            <p>
-              Sivu {pagination.page ?? 1}{' '}
-              {pagination.pages ? ` / ${pagination.pages}` : null}
+      {pagination && (
+        <div className="rounded-md border border-slate-800 bg-slate-900 px-4 py-2 text-sm text-slate-300">
+          <p>
+            Sivu {pagination.page ?? 1}{' '}
+            {pagination.pages ? ` / ${pagination.pages}` : null}
+          </p>
+          {typeof pagination.total === 'number' && (
+            <p className="text-xs text-slate-400">Yhteensä {pagination.total} potilasta</p>
+          )}
+        </div>
+      )}
+    </header>
+
+      {selectionMode && (
+        <div className="rounded-lg border border-sky-500/40 bg-sky-900/20 p-4 text-sm text-slate-100">
+          <p className="font-medium text-slate-100">Valitse ensikäyntiä varten potilas listalta.</p>
+          <p className="mt-1 text-slate-200">
+            Valintapainike palauttaa sinut takaisin ensikäyntiin ja liittää potilaan lomakkeelle.
+          </p>
+          {selectionWantsCreation && (
+            <p className="mt-2 text-slate-200">
+              Voit lisätä uuden potilaan potilaslistan omista työkaluista ja palata tämän sivun kautta ensikäynnille.
             </p>
-            {typeof pagination.total === 'number' && (
-              <p className="text-xs text-slate-400">Yhteensä {pagination.total} potilasta</p>
-            )}
-          </div>
-        )}
-      </header>
+          )}
+        </div>
+      )}
 
       {isLoading && (
         <div className="rounded-lg border border-slate-800 bg-slate-900/60 p-6 text-sm text-slate-300">
@@ -189,6 +244,14 @@ const PatientsPage = () => {
                 <th scope="col" className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-400">
                   Tila
                 </th>
+                {selectionMode && (
+                  <th
+                    scope="col"
+                    className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-400"
+                  >
+                    Toiminnot
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800 bg-slate-900/40">
@@ -197,6 +260,18 @@ const PatientsPage = () => {
                   <td className="px-4 py-3 text-sm font-medium text-slate-100">{patient.identifier}</td>
                   <td className="px-4 py-3 text-sm text-slate-200">{patient.name ?? '—'}</td>
                   <td className="px-4 py-3 text-sm text-slate-200">{patient.status ?? '—'}</td>
+                  {selectionMode && (
+                    <td className="px-4 py-3 text-right text-sm text-slate-200">
+                      <button
+                        type="button"
+                        onClick={() => handlePatientSelect(patient.id)}
+                        disabled={!patient.id}
+                        className="rounded-md border border-slate-600 px-3 py-1.5 font-medium text-slate-100 transition hover:border-sky-400 hover:text-white focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Valitse
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

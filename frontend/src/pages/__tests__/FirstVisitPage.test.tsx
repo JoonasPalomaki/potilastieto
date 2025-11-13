@@ -1,7 +1,8 @@
+import { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 
 import FirstVisitPage from '../FirstVisitPage';
 import { useAuth } from '../../contexts/AuthContext';
@@ -30,6 +31,11 @@ const createServiceMock = () => {
   } as unknown as VisitService;
 };
 
+const LocationDisplay = () => {
+  const location = useLocation();
+  return <div data-testid="location-display">{`${location.pathname}${location.search}`}</div>;
+};
+
 const defaultAppointment = {
   id: 1,
   patient_id: 10,
@@ -51,11 +57,49 @@ const defaultPatient = {
   sex: 'female',
 };
 
-const renderPage = (serviceMock: VisitService, initialEntry = '/first-visit?appointmentId=1') => {
+const createVisitResponse = (overrides: Partial<InitialVisit> = {}): InitialVisit => ({
+  id: 99,
+  patient_id: overrides.patient_id ?? defaultPatient.id,
+  appointment_id: overrides.appointment_id ?? defaultAppointment.id,
+  basics:
+    overrides.basics ??
+    ({
+      visit_type: 'initial',
+      location: 'Huone 7',
+      started_at: '2024-05-25T08:00:00Z',
+      ended_at: '2024-05-25T08:30:00Z',
+      attending_provider_id: 5,
+      updated_at: '2024-05-25T08:30:00Z',
+    } as InitialVisit['basics']),
+  reason:
+    overrides.reason ?? ({ reason: 'Päänsärky', updated_at: '2024-05-25T08:30:00Z' } as InitialVisit['reason']),
+  anamnesis:
+    overrides.anamnesis ?? ({ content: 'Kuvaus', updated_at: '2024-05-25T08:30:00Z' } as InitialVisit['anamnesis']),
+  status:
+    overrides.status ?? ({ content: 'Tila', updated_at: '2024-05-25T08:30:00Z' } as InitialVisit['status']),
+  diagnoses:
+    overrides.diagnoses ??
+    ({
+      diagnoses: [{ code: 'R51', description: 'Päänsärky', is_primary: true }],
+      updated_at: '2024-05-25T08:30:00Z',
+    } as InitialVisit['diagnoses']),
+  orders: overrides.orders ?? ({ orders: [] } as InitialVisit['orders']),
+  summary:
+    overrides.summary ?? ({ content: 'Seuranta', updated_at: '2024-05-25T08:30:00Z' } as InitialVisit['summary']),
+  created_at: overrides.created_at ?? '2024-05-25T08:30:00Z',
+  updated_at: overrides.updated_at ?? '2024-05-25T08:30:00Z',
+});
+
+const renderPage = (
+  serviceMock: VisitService,
+  initialEntry = '/first-visit?appointmentId=1',
+  extraRoutes?: ReactNode,
+) => {
   return render(
     <MemoryRouter initialEntries={[initialEntry]}>
       <Routes>
         <Route path="/first-visit" element={<FirstVisitPage service={serviceMock} />} />
+        {extraRoutes}
       </Routes>
     </MemoryRouter>,
   );
@@ -128,30 +172,10 @@ describe('FirstVisitPage', () => {
     const createdPatient = { ...defaultPatient, id: 77 };
     serviceMock.createPatient = vi.fn().mockResolvedValue(createdPatient);
 
-    const savedVisit: InitialVisit = {
-      id: 99,
-      patient_id: createdPatient.id,
+    const savedVisit = createVisitResponse({
       appointment_id: appointmentWithoutPatient.id,
-      basics: {
-        visit_type: 'initial',
-        location: 'Huone 7',
-        started_at: '2024-05-25T08:00:00Z',
-        ended_at: '2024-05-25T08:30:00Z',
-        attending_provider_id: 5,
-        updated_at: '2024-05-25T08:30:00Z',
-      },
-      reason: { reason: 'Päänsärky', updated_at: '2024-05-25T08:30:00Z' },
-      anamnesis: { content: 'Kuvaus', updated_at: '2024-05-25T08:30:00Z' },
-      status: { content: 'Tila', updated_at: '2024-05-25T08:30:00Z' },
-      diagnoses: {
-        diagnoses: [{ code: 'R51', description: 'Päänsärky', is_primary: true }],
-        updated_at: '2024-05-25T08:30:00Z',
-      },
-      orders: { orders: [] },
-      summary: { content: 'Seuranta', updated_at: '2024-05-25T08:30:00Z' },
-      created_at: '2024-05-25T08:30:00Z',
-      updated_at: '2024-05-25T08:30:00Z',
-    };
+      patient_id: createdPatient.id,
+    });
     serviceMock.createInitialVisit = vi.fn().mockResolvedValue(savedVisit);
 
     renderPage(serviceMock, '/first-visit?appointmentId=55');
@@ -188,6 +212,70 @@ describe('FirstVisitPage', () => {
         reason: { reason: 'Päänsärky' },
       }),
       expect.any(Object),
+    );
+  });
+
+  it('sallii ensikäynnin tallennuksen ilman ajanvarausta valitulla potilaalla', async () => {
+    const serviceMock = createServiceMock();
+    serviceMock.getAppointment = vi.fn();
+    serviceMock.getPatient = vi.fn().mockResolvedValue(defaultPatient);
+    const savedVisit = createVisitResponse({ appointment_id: null, patient_id: defaultPatient.id });
+    serviceMock.createInitialVisit = vi.fn().mockResolvedValue(savedVisit);
+
+    renderPage(serviceMock, '/first-visit?patientId=10');
+
+    await waitFor(() =>
+      expect(serviceMock.getPatient).toHaveBeenCalledWith(defaultPatient.id, expect.any(Object)),
+    );
+
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText('Käynnin syy'), 'Migreeni');
+    await user.type(screen.getByLabelText('Anamneesikuvaus'), 'Potilas raportoi pitkäaikaista särkyä.');
+    await user.type(screen.getByLabelText('Statuskirjaus'), 'Yleistila hyvä.');
+    await user.type(screen.getByLabelText('Diagnoosikoodi'), 'R51');
+    await user.type(screen.getByLabelText('Yhteenvetomuistio'), 'Kontrolli viikon kuluttua.');
+
+    await user.click(screen.getByRole('button', { name: 'Tallenna ensikäynti' }));
+
+    await waitFor(() => expect(serviceMock.createInitialVisit).toHaveBeenCalled());
+
+    const payload = serviceMock.createInitialVisit.mock.calls[0][0];
+    expect(payload).toMatchObject({ patient_id: defaultPatient.id });
+    expect(payload).not.toHaveProperty('appointment_id');
+    expect(serviceMock.getAppointment).not.toHaveBeenCalled();
+  });
+
+  it('navigoi potilaslistaan potilasvalintaa varten', async () => {
+    const serviceMock = createServiceMock();
+
+    renderPage(
+      serviceMock,
+      '/first-visit',
+      <Route path="/patients" element={<LocationDisplay />} />,
+    );
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Valitse potilas' }));
+
+    expect(await screen.findByTestId('location-display')).toHaveTextContent(
+      '/patients?select=first-visit&returnTo=%2Ffirst-visit',
+    );
+  });
+
+  it('sisällyttää luontiparametrin uuden potilaan lisäyspainikkeessa', async () => {
+    const serviceMock = createServiceMock();
+
+    renderPage(
+      serviceMock,
+      '/first-visit?appointmentId=5',
+      <Route path="/patients" element={<LocationDisplay />} />,
+    );
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Lisää uusi potilas' }));
+
+    expect(await screen.findByTestId('location-display')).toHaveTextContent(
+      '/patients?select=first-visit&returnTo=%2Ffirst-visit%3FappointmentId%3D5&create=1',
     );
   });
 });

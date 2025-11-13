@@ -136,7 +136,8 @@ export interface VisitOrdersUpdate {
 }
 
 export interface InitialVisitCreateRequest {
-  appointment_id: number;
+  appointment_id?: number | null;
+  patient_id?: number | null;
   basics?: VisitBasicsUpdate;
   reason?: VisitReasonUpdate;
   anamnesis?: VisitNarrativeUpdate;
