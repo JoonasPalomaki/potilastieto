@@ -111,6 +111,35 @@ Billing users have read-only access to patient data (list and detail). Write ope
   - `200 OK`: Returns updated `PatientDetail` with `status` set to `active` and appended history entries for the archive and restore actions.
   - `409 Conflict`: `{ "detail": "Potilas ei ole arkistoitu", "code": "PATIENT_NOT_ARCHIVED" }` when attempting to restore an active patient.
 
+## `/api/v1/diagnosis-codes`
+
+Lookup endpoint and CSV import pipeline for the `DiagnosisCode` dictionary defined in `docs/architecture.md` (`REQ-F-ADM-004`).
+
+### GET `/api/v1/diagnosis-codes`
+- **Description**: Search diagnosis codes for dropdowns and administrative reviews. Default responses exclude logically deleted rows (`is_deleted = false`).
+- **Roles**: doctor, nurse, billing, admin (only admins may expose deleted rows).
+- **Query Parameters**:
+  - `search`: Free-text filter that matches `code`, `short_label`, or `long_label` (case-insensitive, uses prefix search for codes and substring search for labels).
+  - `chapter`: Optional chapter identifier to scope the results.
+  - `code`: Exact code match. When supplied, pagination is bypassed and a single item is returned if found.
+  - `include_deleted`: `true/false`, defaults to `false`. Ignored unless caller has admin role.
+  - Standard pagination params (`page`, `page_size`).
+- **Responses**:
+  - `200 OK`: `{ "items": [DiagnosisCodeSummary], "page": 1, "page_size": 25, "total": 240 }` with each item exposing `{ "code", "short_label", "long_label", "chapter", "effective_from", "effective_to", "is_deleted" }`.
+
+### POST `/api/v1/diagnosis-codes/import`
+- **Description**: Upload a CSV snapshot to upsert diagnosis codes. CSV must contain the header `code;short_label;long_label;chapter;effective_from;effective_to;delete_flag`. Import is idempotent: unchanged rows remain untouched, `delete_flag` toggles the logical `is_deleted` field, and `code` serves as the immutable primary key.
+- **Roles**: admin.
+- **Request**: `multipart/form-data` with fields:
+  - `file`: CSV file encoded in UTF-8.
+  - `dry_run` (optional, default `true`): when true the system validates and returns a diff preview without persisting changes.
+- **Responses**:
+  - `200 OK` (dry run): `{ "dry_run": true, "stats": { "insert": 12, "update": 4, "delete": 1 }, "errors": [] }`.
+  - `201 Created` (applied import): `{ "dry_run": false, "applied_at": "2024-04-12T09:30:00Z", "stats": {...}, "warnings": [] }`.
+  - `400 Bad Request`: `{ "detail": "CSV puuttuu pakollisen sarakkeen chapter", "code": "CSV_SCHEMA_ERROR", "row": 2 }` when the parser detects issues.
+  - `409 Conflict`: When another import is still running, returning `{ "detail": "Tuonti on jo käynnissä", "code": "IMPORT_IN_PROGRESS" }`.
+- **Deleted-flag behavior**: `delete_flag=true` rows mark `is_deleted` without removing the record so historical patient encounters referencing the code stay consistent. Subsequent imports may reactivate a code by setting `delete_flag=false` with newer `effective_from` dates.
+
 ## `/api/v1/appointments`
 
 ### GET `/api/v1/appointments/availability`

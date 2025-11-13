@@ -9,6 +9,7 @@ This repository contains the first runnable slice of the Patient Information Sys
 - Patient registry with contacts, consents, history snapshots, and soft-archive support (`REQ-F-REG-001` … `REQ-F-REG-005`).
 - Appointment scheduling with conflict detection, rescheduling, and cancellation flows (`REQ-F-APPT-001`, `REQ-F-APPT-003`).
 - Audit logging and background cleanup of expired tokens and overdue appointments (`REQ-NF-SEC-003`).
+- Diagnosis code registry with CSV-based import tooling and search API support for downstream forms (`REQ-F-ADM-004`).
 - Requirement status tracking via `specs/requirement_status.yml` and `tools/spec_loader.py`.
 - React + Vite + Tailwind frontend workspace for future UI stories (`REQ-NF-ARCH-001`).
 
