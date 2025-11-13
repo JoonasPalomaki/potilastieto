@@ -6,7 +6,7 @@ import { ApiError, PatientCreateRequest, VisitService, visitService } from '../s
 import { resolveApiErrorMessage } from '../utils/apiErrors';
 
 interface PatientFormState {
-  identifier: string;
+  identifier?: string;
   firstName: string;
   lastName: string;
   dateOfBirth: string;
@@ -23,6 +23,71 @@ const initialState: PatientFormState = {
   sex: '',
   phone: '',
   email: '',
+};
+
+const HETU_CHECK_CHARS = '0123456789ABCDEFHJKLMNPRSTUVWXY';
+const HETU_PATTERN = /^(\d{6})([A+-])(\d{3})([0-9A-Z])$/;
+
+const validateFinnishHetu = (
+  identifier: string,
+  options: { dateOfBirth?: string; sex?: string },
+): string | null => {
+  const trimmed = identifier.trim();
+  const formatted = trimmed.toUpperCase();
+  const match = formatted.match(HETU_PATTERN);
+  if (!match) {
+    return 'Henkilötunnuksen muoto on virheellinen.';
+  }
+
+  const [, datePart, separator, individualPart, checksumChar] = match;
+  const day = Number.parseInt(datePart.slice(0, 2), 10);
+  const month = Number.parseInt(datePart.slice(2, 4), 10);
+  const yearSuffix = Number.parseInt(datePart.slice(4), 10);
+
+  const centuryMap: Record<string, number> = {
+    '+': 1800,
+    '-': 1900,
+    A: 2000,
+    B: 2100,
+    C: 2200,
+    D: 2300,
+    E: 2400,
+    F: 2500,
+  };
+
+  if (!centuryMap[separator]) {
+    return 'Henkilötunnuksen vuosisatamerkki on virheellinen.';
+  }
+
+  const year = centuryMap[separator] + yearSuffix;
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (
+    Number.isNaN(date.getTime()) ||
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() + 1 !== month ||
+    date.getUTCDate() !== day
+  ) {
+    return 'Henkilötunnuksen syntymäaika on virheellinen.';
+  }
+
+  const checksumSource = `${datePart}${individualPart}`;
+  const checksumIndex = Number.parseInt(checksumSource, 10) % 31;
+  const expectedChecksum = HETU_CHECK_CHARS[checksumIndex];
+  if (checksumChar !== expectedChecksum) {
+    return 'Henkilötunnuksen tarkistusmerkki on virheellinen.';
+  }
+
+  const derivedBirthDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  if (options.dateOfBirth && options.dateOfBirth !== derivedBirthDate) {
+    return 'Syntymäaika ei täsmää henkilötunnuksen kanssa.';
+  }
+
+  const derivedSex = Number.parseInt(individualPart, 10) % 2 ? 'male' : 'female';
+  if (options.sex && options.sex !== derivedSex) {
+    return 'Sukupuoli ei täsmää henkilötunnuksen kanssa.';
+  }
+
+  return null;
 };
 
 const PatientCreatePage = ({ service = visitService }: { service?: VisitService }) => {
@@ -75,15 +140,31 @@ const PatientCreatePage = ({ service = visitService }: { service?: VisitService 
 
   const validateForm = useCallback(() => {
     const errors: Record<string, string> = {};
+    const trimmedIdentifier = formState.identifier?.trim() ?? '';
+    const normalizedSex = formState.sex ? formState.sex.trim().toLowerCase() : '';
 
-    if (!formState.identifier.trim()) {
-      errors.identifier = 'Henkilötunnus on pakollinen.';
-    }
     if (!formState.firstName.trim()) {
       errors.firstName = 'Etunimi on pakollinen.';
     }
     if (!formState.lastName.trim()) {
       errors.lastName = 'Sukunimi on pakollinen.';
+    }
+
+    if (trimmedIdentifier) {
+      const identifierError = validateFinnishHetu(trimmedIdentifier, {
+        dateOfBirth: formState.dateOfBirth || undefined,
+        sex: normalizedSex || undefined,
+      });
+      if (identifierError) {
+        errors.identifier = identifierError;
+      }
+    } else {
+      if (!formState.dateOfBirth) {
+        errors.dateOfBirth = 'Syntymäaika on pakollinen ilman henkilötunnusta.';
+      }
+      if (!normalizedSex) {
+        errors.sex = 'Sukupuoli on pakollinen ilman henkilötunnusta.';
+      }
     }
 
     return errors;
@@ -131,12 +212,14 @@ const PatientCreatePage = ({ service = visitService }: { service?: VisitService 
     setIsSubmitting(true);
 
     try {
+      const trimmedIdentifier = formState.identifier?.trim() ?? '';
+      const normalizedSex = formState.sex ? formState.sex.trim().toLowerCase() : '';
+
       const payload: PatientCreateRequest = {
-        identifier: formState.identifier.trim(),
         first_name: formState.firstName.trim(),
         last_name: formState.lastName.trim(),
         date_of_birth: formState.dateOfBirth ? formState.dateOfBirth : undefined,
-        sex: formState.sex ? formState.sex.toLowerCase() : undefined,
+        sex: normalizedSex || undefined,
         contact_info:
           formState.phone || formState.email
             ? {
@@ -145,6 +228,10 @@ const PatientCreatePage = ({ service = visitService }: { service?: VisitService 
               }
             : undefined,
       };
+
+      if (trimmedIdentifier) {
+        payload.identifier = trimmedIdentifier.toUpperCase();
+      }
 
       const createdPatient = await service.createPatient(payload, { authorization });
       setSubmitSuccess('Potilas lisättiin onnistuneesti. Siirrytään takaisin näkymään.');
@@ -226,6 +313,7 @@ const PatientCreatePage = ({ service = visitService }: { service?: VisitService 
               onChange={handleFieldChange('dateOfBirth')}
               className="mt-1 w-full rounded-md border border-slate-800 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
             />
+            {formErrors.dateOfBirth && <p className="mt-1 text-sm text-rose-300">{formErrors.dateOfBirth}</p>}
           </div>
 
           <div>
@@ -274,6 +362,7 @@ const PatientCreatePage = ({ service = visitService }: { service?: VisitService 
               <option value="male">Mies</option>
               <option value="other">Muu</option>
             </select>
+            {formErrors.sex && <p className="mt-1 text-sm text-rose-300">{formErrors.sex}</p>}
           </div>
 
           <div>

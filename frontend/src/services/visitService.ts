@@ -148,7 +148,7 @@ export interface InitialVisitCreateRequest {
 }
 
 export interface PatientCreateRequest {
-  identifier: string;
+  identifier?: string;
   first_name: string;
   last_name: string;
   date_of_birth?: string | null;
