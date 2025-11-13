@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import ProtectedLayout from './components/ProtectedLayout';
 import FirstVisitPage from './pages/FirstVisitPage';
 import LoginPage from './pages/LoginPage';
+import PatientCreatePage from './pages/PatientCreatePage';
 import PatientsPage from './pages/PatientsPage';
 import StartPage from './pages/StartPage';
 
@@ -15,6 +16,7 @@ const App = () => {
           <Route index element={<Navigate to="/start" replace />} />
           <Route path="/start" element={<StartPage />} />
           <Route path="/patients" element={<PatientsPage />} />
+          <Route path="/patients/new" element={<PatientCreatePage />} />
           <Route path="/first-visit" element={<FirstVisitPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/start" replace />} />

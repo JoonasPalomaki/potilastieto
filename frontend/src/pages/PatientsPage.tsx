@@ -103,6 +103,28 @@ const PatientsPage = () => {
     }
   }, [selectionMode, selectionReturnToParam]);
 
+  const createPatientUrl = useMemo(() => {
+    const params = new URLSearchParams();
+    if (selectionMode) {
+      params.set('select', 'first-visit');
+      if (selectionReturnToParam) {
+        params.set('returnTo', selectionReturnToParam);
+      }
+    }
+    const query = params.toString();
+    return `/patients/new${query ? `?${query}` : ''}`;
+  }, [selectionMode, selectionReturnToParam]);
+
+  const handleCreatePatient = useCallback(() => {
+    navigate(createPatientUrl);
+  }, [createPatientUrl, navigate]);
+
+  useEffect(() => {
+    if (selectionMode && selectionWantsCreation) {
+      navigate(createPatientUrl, { replace: true });
+    }
+  }, [createPatientUrl, navigate, selectionMode, selectionWantsCreation]);
+
   const buildReturnUrl = useCallback(
     (patientId: number) => {
       const basePath = selectionReturnTo || '/first-visit';
@@ -179,7 +201,7 @@ const PatientsPage = () => {
 
   return (
     <section className="space-y-6">
-      <header className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+      <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-sky-400">Potilaat</p>
           <h2 className="text-2xl font-bold">Potilasluettelo</h2>
@@ -187,18 +209,27 @@ const PatientsPage = () => {
             Tarkastele järjestelmään rekisteröityjen potilaiden perustietoja.
           </p>
         </div>
-      {pagination && (
-        <div className="rounded-md border border-slate-800 bg-slate-900 px-4 py-2 text-sm text-slate-300">
-          <p>
-            Sivu {pagination.page ?? 1}{' '}
-            {pagination.pages ? ` / ${pagination.pages}` : null}
-          </p>
-          {typeof pagination.total === 'number' && (
-            <p className="text-xs text-slate-400">Yhteensä {pagination.total} potilasta</p>
+        <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-end">
+          <button
+            type="button"
+            onClick={handleCreatePatient}
+            className="inline-flex items-center justify-center rounded-md bg-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 focus:ring-offset-slate-950"
+          >
+            Lisää potilas
+          </button>
+          {pagination && (
+            <div className="rounded-md border border-slate-800 bg-slate-900 px-4 py-2 text-sm text-slate-300">
+              <p>
+                Sivu {pagination.page ?? 1}{' '}
+                {pagination.pages ? ` / ${pagination.pages}` : null}
+              </p>
+              {typeof pagination.total === 'number' && (
+                <p className="text-xs text-slate-400">Yhteensä {pagination.total} potilasta</p>
+              )}
+            </div>
           )}
         </div>
-      )}
-    </header>
+      </header>
 
       {selectionMode && (
         <div className="rounded-lg border border-sky-500/40 bg-sky-900/20 p-4 text-sm text-slate-100">
@@ -208,7 +239,7 @@ const PatientsPage = () => {
           </p>
           {selectionWantsCreation && (
             <p className="mt-2 text-slate-200">
-              Voit lisätä uuden potilaan potilaslistan omista työkaluista ja palata tämän sivun kautta ensikäynnille.
+              Jos sinulla ei ole vielä sopivaa potilasta, lisää uusi potilas "Lisää potilas" -painikkeesta.
             </p>
           )}
         </div>

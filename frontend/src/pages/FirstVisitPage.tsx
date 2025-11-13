@@ -14,6 +14,7 @@ import {
   VisitService,
   visitService,
 } from '../services/visitService';
+import { resolveApiErrorMessage } from '../utils/apiErrors';
 
 interface FormState {
   visitType: string;
@@ -96,20 +97,6 @@ const toIsoString = (value: string): string | undefined => {
   return date.toISOString();
 };
 
-const resolveApiErrorMessage = (error: ApiError): string => {
-  const body = error.body as { detail?: unknown } | null;
-  if (body && typeof body.detail === 'string') {
-    return body.detail;
-  }
-  if (body && body.detail && typeof body.detail === 'object' && 'message' in body.detail) {
-    const detail = body.detail as { message?: unknown };
-    if (typeof detail.message === 'string') {
-      return detail.message;
-    }
-  }
-  return 'Toiminto epäonnistui. Yritä uudelleen myöhemmin.';
-};
-
 const focusFirstError = (
   errors: Record<string, string>,
   refs: MutableRefObject<Record<string, HTMLInputElement | HTMLTextAreaElement | null>>,
@@ -179,19 +166,28 @@ const FirstVisitPage = ({ service = visitService }: { service?: VisitService }) 
 
   const needsPatientForm = useMemo(() => !patient && !createdPatientId, [patient, createdPatientId]);
 
-  const patientSelectionBaseUrl = useMemo(() => {
+  const patientSelectionReturnTo = useMemo(() => {
     const currentPath = `${location.pathname}${location.search}` || '/first-visit';
-    const encodedReturnTo = encodeURIComponent(currentPath);
-    return `/patients?select=first-visit&returnTo=${encodedReturnTo}`;
+    return encodeURIComponent(currentPath);
   }, [location.pathname, location.search]);
 
+  const patientSelectionListUrl = useMemo(
+    () => `/patients?select=first-visit&returnTo=${patientSelectionReturnTo}`,
+    [patientSelectionReturnTo],
+  );
+
+  const patientSelectionCreateUrl = useMemo(
+    () => `/patients/new?select=first-visit&returnTo=${patientSelectionReturnTo}`,
+    [patientSelectionReturnTo],
+  );
+
   const handleSelectPatientFromList = useCallback(() => {
-    navigate(patientSelectionBaseUrl);
-  }, [navigate, patientSelectionBaseUrl]);
+    navigate(patientSelectionListUrl);
+  }, [navigate, patientSelectionListUrl]);
 
   const handleCreatePatientFromList = useCallback(() => {
-    navigate(`${patientSelectionBaseUrl}&create=1`);
-  }, [navigate, patientSelectionBaseUrl]);
+    navigate(patientSelectionCreateUrl);
+  }, [navigate, patientSelectionCreateUrl]);
 
   const registerFieldRef = useCallback(
     (key: string) => (element: HTMLInputElement | HTMLTextAreaElement | null) => {
