@@ -57,7 +57,7 @@ Billing users have read-only access to patient data (list and detail). Write ope
 - **Description**: Fetch patient details with history pointers (`REQ-F-REG-002`).
 - **Roles**: doctor, nurse, billing, admin.
 - **Responses**:
-  - `200 OK`: `PatientDetail` with embedded consents, contacts, latest history entry id.
+  - `200 OK`: `PatientDetail` with embedded consents, contacts, visit summaries (latest first with `id`, `visit_type`, `reason`, `status`, `location`, `started_at`, `ended_at`, `created_at`, `updated_at`), and latest history entry id.
   - `404 Not Found`: Invalid patient id or archived without admin role.
 
 ### PUT `/api/v1/patients/{patient_id}`
