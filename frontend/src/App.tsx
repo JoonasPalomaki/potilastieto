@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 
 import ProtectedLayout from './components/ProtectedLayout';
 import FirstVisitPage from './pages/FirstVisitPage';
+import AdminDiagnosisCodesPage from './pages/AdminDiagnosisCodesPage';
 import LoginPage from './pages/LoginPage';
 import PatientCreatePage from './pages/PatientCreatePage';
 import PatientDetailPage from './pages/PatientDetailPage';
@@ -20,6 +21,7 @@ const App = () => {
           <Route path="/patients/new" element={<PatientCreatePage />} />
           <Route path="/patients/:patientId" element={<PatientDetailPage />} />
           <Route path="/first-visit" element={<FirstVisitPage />} />
+          <Route path="/admin/diagnosis-codes" element={<AdminDiagnosisCodesPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/start" replace />} />
       </Routes>

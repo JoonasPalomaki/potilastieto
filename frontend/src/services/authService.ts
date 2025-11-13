@@ -20,6 +20,7 @@ export interface AuthSession {
   tokenType: string;
   expiresAt: number;
   username?: string;
+  role?: string;
 }
 
 interface LoginResponse {
@@ -28,7 +29,7 @@ interface LoginResponse {
   token_type?: string;
   expires_in?: number;
   expires_at?: string;
-  user?: { username?: string } | null;
+  user?: { username?: string; role?: string | null } | null;
 }
 
 export interface LoginCredentials {
@@ -122,6 +123,7 @@ export const authService = {
       tokenType: payload.token_type ?? 'Bearer',
       expiresAt: parseExpiry(payload),
       username: payload.user?.username ?? credentials.username,
+      role: payload.user?.role ?? undefined,
     };
 
     persistSession(session);
