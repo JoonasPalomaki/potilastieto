@@ -6,7 +6,7 @@ import userEvent from '@testing-library/user-event';
 
 import PatientCreatePage from '../PatientCreatePage';
 import { useAuth } from '../../contexts/AuthContext';
-import type { VisitService } from '../../services/visitService';
+import { ApiError, type VisitService } from '../../services/visitService';
 
 vi.mock('../../contexts/AuthContext', () => ({
   useAuth: vi.fn(),
@@ -170,5 +170,30 @@ describe('PatientCreatePage', () => {
 
     expect(await screen.findByText('Henkilötunnuksen muoto on virheellinen.')).toBeInTheDocument();
     expect(createPatient).not.toHaveBeenCalled();
+  });
+
+  it('näyttää palvelimen palauttamat kenttävirheet', async () => {
+    const createPatient = vi.fn().mockRejectedValue(
+      new ApiError('Request failed', 422, {
+        detail: [
+          { loc: ['body', 'identifier'], msg: 'Tämä henkilötunnus on jo käytössä.' },
+        ],
+      }),
+    );
+    const service = { createPatient } as unknown as VisitService;
+
+    renderWithRouter(<PatientCreatePage service={service} />);
+
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText('Henkilötunnus'), '123456-999A');
+    await user.type(screen.getByLabelText('Etunimi'), 'Testi');
+    await user.type(screen.getByLabelText('Sukunimi'), 'Potilas');
+
+    await user.click(screen.getByRole('button', { name: 'Tallenna potilas' }));
+
+    await waitFor(() => expect(createPatient).toHaveBeenCalled());
+
+    expect(await screen.findByText('identifier: Tämä henkilötunnus on jo käytössä.')).toBeInTheDocument();
+    expect(screen.getByText('Tämä henkilötunnus on jo käytössä.')).toBeInTheDocument();
   });
 });

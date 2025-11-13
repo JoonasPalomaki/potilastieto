@@ -90,6 +90,70 @@ const validateFinnishHetu = (
   return null;
 };
 
+type ApiFieldErrors = Partial<Record<keyof PatientFormState, string>>;
+
+const apiFieldToFormField: Record<string, keyof PatientFormState> = {
+  identifier: 'identifier',
+  first_name: 'firstName',
+  last_name: 'lastName',
+  date_of_birth: 'dateOfBirth',
+  sex: 'sex',
+  phone: 'phone',
+  email: 'email',
+  'contact_info.phone': 'phone',
+  'contact_info.email': 'email',
+};
+
+const extractFieldErrorsFromApiError = (error: ApiError): ApiFieldErrors => {
+  const body = error.body as { detail?: unknown } | null;
+  if (!body || !Array.isArray(body.detail)) {
+    return {};
+  }
+
+  const fieldErrors: ApiFieldErrors = {};
+
+  body.detail.forEach((detail) => {
+    if (!detail || typeof detail !== 'object') {
+      return;
+    }
+    const fastApiDetail = detail as { loc?: unknown; msg?: unknown; message?: unknown; detail?: unknown };
+    const message =
+      typeof fastApiDetail.msg === 'string'
+        ? fastApiDetail.msg
+        : typeof fastApiDetail.message === 'string'
+          ? fastApiDetail.message
+          : typeof fastApiDetail.detail === 'string'
+            ? fastApiDetail.detail
+            : null;
+    if (!message) {
+      return;
+    }
+
+    const locParts = Array.isArray(fastApiDetail.loc)
+      ? fastApiDetail.loc
+          .filter((part) => part !== 'body')
+          .map((part) => (typeof part === 'string' ? part : String(part)))
+      : [];
+    if (locParts.length === 0) {
+      return;
+    }
+
+    const lookupKeys = [locParts.join('.'), locParts[locParts.length - 1]];
+    for (const key of lookupKeys) {
+      if (!key) {
+        continue;
+      }
+      const fieldKey = apiFieldToFormField[key];
+      if (fieldKey && !fieldErrors[fieldKey]) {
+        fieldErrors[fieldKey] = message;
+        break;
+      }
+    }
+  });
+
+  return fieldErrors;
+};
+
 const PatientCreatePage = ({ service = visitService }: { service?: VisitService }) => {
   const { session } = useAuth();
   const navigate = useNavigate();
@@ -242,6 +306,10 @@ const PatientCreatePage = ({ service = visitService }: { service?: VisitService 
       }, 1200);
     } catch (error) {
       if (error instanceof ApiError) {
+        const apiFieldErrors = extractFieldErrorsFromApiError(error);
+        if (Object.keys(apiFieldErrors).length > 0) {
+          setFormErrors((previous) => ({ ...previous, ...apiFieldErrors }));
+        }
         setSubmitError(resolveApiErrorMessage(error));
       } else {
         setSubmitError('Potilaan tallentaminen epäonnistui.');
