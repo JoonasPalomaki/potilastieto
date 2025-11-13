@@ -4,12 +4,12 @@ from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import Column, JSON
-from sqlmodel import Field
+from sqlmodel import Field, SQLModel
 
 from app.models.base import TimestampMixin
 
 
-class AuditEvent(TimestampMixin, table=True):
+class AuditEvent(TimestampMixin, SQLModel, table=True):
     __tablename__ = "audit_events"
 
     id: Optional[int] = Field(default=None, primary_key=True)

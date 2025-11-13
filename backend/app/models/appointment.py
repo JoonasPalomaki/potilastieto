@@ -3,12 +3,12 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from sqlmodel import Field
+from sqlmodel import Field, SQLModel
 
 from app.models.base import TimestampMixin
 
 
-class Appointment(TimestampMixin, table=True):
+class Appointment(TimestampMixin, SQLModel, table=True):
     __tablename__ = "appointments"
 
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -25,7 +25,7 @@ class Appointment(TimestampMixin, table=True):
     cancelled_at: Optional[datetime] = Field(default=None)
 
 
-class AppointmentStatusHistory(TimestampMixin, table=True):
+class AppointmentStatusHistory(TimestampMixin, SQLModel, table=True):
     __tablename__ = "appointment_status_history"
 
     id: Optional[int] = Field(default=None, primary_key=True)

@@ -5,12 +5,12 @@ from datetime import date, datetime
 from typing import Optional
 
 from sqlalchemy import Column, JSON
-from sqlmodel import Field
+from sqlmodel import Field, SQLModel
 
 from app.models.base import TimestampMixin
 
 
-class Patient(TimestampMixin, table=True):
+class Patient(TimestampMixin, SQLModel, table=True):
     __tablename__ = "patients"
 
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -29,7 +29,7 @@ class Patient(TimestampMixin, table=True):
     created_by: Optional[int] = Field(default=None, foreign_key="users.id")
 
 
-class PatientContact(TimestampMixin, table=True):
+class PatientContact(TimestampMixin, SQLModel, table=True):
     __tablename__ = "patient_contacts"
 
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -41,7 +41,7 @@ class PatientContact(TimestampMixin, table=True):
     is_guardian: bool = Field(default=False)
 
 
-class Consent(TimestampMixin, table=True):
+class Consent(TimestampMixin, SQLModel, table=True):
     __tablename__ = "consents"
 
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -53,7 +53,7 @@ class Consent(TimestampMixin, table=True):
     notes: Optional[str] = Field(default=None, max_length=255)
 
 
-class PatientHistory(TimestampMixin, table=True):
+class PatientHistory(TimestampMixin, SQLModel, table=True):
     __tablename__ = "patient_history"
 
     id: Optional[int] = Field(default=None, primary_key=True)

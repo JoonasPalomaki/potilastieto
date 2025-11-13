@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from __future__ import annotations
-
 from typing import Optional
 
 from sqlalchemy import Column, JSON
@@ -10,7 +8,7 @@ from sqlmodel import Field, SQLModel
 from app.models.base import TimestampMixin
 
 
-class Role(TimestampMixin, table=True):
+class Role(TimestampMixin, SQLModel, table=True):
     __tablename__ = "roles"
 
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -22,7 +20,7 @@ class Role(TimestampMixin, table=True):
     )
 
 
-class User(TimestampMixin, table=True):
+class User(TimestampMixin, SQLModel, table=True):
     __tablename__ = "users"
 
     id: Optional[int] = Field(default=None, primary_key=True)
