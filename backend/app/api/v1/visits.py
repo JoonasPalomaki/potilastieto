@@ -23,6 +23,7 @@ from app.services import (
     VisitAppointmentNotFoundError,
     VisitConflictError,
     VisitNotFoundError,
+    VisitPatientNotFoundError,
     create_initial_visit,
     get_initial_visit,
     update_visit_anamnesis,
@@ -82,6 +83,8 @@ def create_visit(
         )
     except VisitAppointmentNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ajanvarausta ei löydy") from exc
+    except VisitPatientNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Potilasta ei löydy") from exc
     except VisitConflictError as exc:
         raise _visit_conflict(exc) from exc
 

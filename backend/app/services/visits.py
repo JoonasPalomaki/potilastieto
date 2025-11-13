@@ -5,7 +5,7 @@ from typing import Dict, Iterable, List, Optional
 
 from sqlmodel import Session, select
 
-from app.models import Appointment, ClinicalNote, Order, Visit
+from app.models import Appointment, ClinicalNote, Order, Patient, Visit
 from app.schemas import (
     InitialVisitCreate,
     InitialVisitRead,
@@ -51,6 +51,10 @@ class VisitConflictError(Exception):
 
 class VisitAppointmentNotFoundError(Exception):
     """Raised when the appointment for a new visit does not exist."""
+
+
+class VisitPatientNotFoundError(Exception):
+    """Raised when the patient for a new visit does not exist."""
 
 
 def _get_visit(session: Session, visit_id: int) -> Visit:
@@ -259,29 +263,55 @@ def create_initial_visit(
     actor_id: Optional[int],
     context: Optional[dict] = None,
 ) -> InitialVisitRead:
-    appointment = session.get(Appointment, data.appointment_id)
-    if not appointment:
-        raise VisitAppointmentNotFoundError
+    appointment: Optional[Appointment] = None
+    patient_id: int
 
-    existing = session.exec(
-        select(Visit).where(Visit.appointment_id == appointment.id)
-    ).first()
-    if existing:
-        raise VisitConflictError("VISIT_EXISTS", "Ensikäynti on jo luotu tälle ajanvaraukselle")
+    if data.appointment_id is not None:
+        appointment = session.get(Appointment, data.appointment_id)
+        if not appointment:
+            raise VisitAppointmentNotFoundError
 
+        existing = session.exec(
+            select(Visit).where(Visit.appointment_id == appointment.id)
+        ).first()
+        if existing:
+            raise VisitConflictError(
+                "VISIT_EXISTS", "Ensikäynti on jo luotu tälle ajanvaraukselle"
+            )
+
+        patient_id = appointment.patient_id
+    else:
+        patient = session.get(Patient, data.patient_id)
+        if not patient:
+            raise VisitPatientNotFoundError
+        patient_id = patient.id
+
+    basics = data.basics
     visit = Visit(
-        patient_id=appointment.patient_id,
-        appointment_id=appointment.id,
-        visit_type=(data.basics.visit_type if data.basics else None),
-        location=(data.basics.location if data.basics else appointment.location),
-        started_at=(data.basics.started_at if data.basics and data.basics.started_at else appointment.start_time),
-        ended_at=(data.basics.ended_at if data.basics and data.basics.ended_at else appointment.end_time),
-        attending_provider_id=(
-            data.basics.attending_provider_id
-            if data.basics and data.basics.attending_provider_id is not None
-            else appointment.provider_id
+        patient_id=patient_id,
+        appointment_id=appointment.id if appointment else None,
+        visit_type=(basics.visit_type if basics else None),
+        location=(
+            basics.location
+            if basics and basics.location is not None
+            else (appointment.location if appointment else None)
         ),
-        reason=data.reason.reason if data.reason else appointment.notes,
+        started_at=(
+            basics.started_at
+            if basics and basics.started_at
+            else (appointment.start_time if appointment else None)
+        ),
+        ended_at=(
+            basics.ended_at
+            if basics and basics.ended_at
+            else (appointment.end_time if appointment else None)
+        ),
+        attending_provider_id=(
+            basics.attending_provider_id
+            if basics and basics.attending_provider_id is not None
+            else (appointment.provider_id if appointment else None)
+        ),
+        reason=data.reason.reason if data.reason else (appointment.notes if appointment else None),
         status="in_progress",
     )
 
