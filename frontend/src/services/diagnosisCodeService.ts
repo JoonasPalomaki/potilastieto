@@ -137,7 +137,7 @@ const normalizeSummary = (payload: unknown): DiagnosisCodeImportSummary => {
 
 const importCodes = async ({ file, authorization, signal }: DiagnosisCodeImportParams): Promise<DiagnosisCodeImportSummary> => {
   const formData = new FormData();
-  formData.append('file', file);
+  formData.append('csv_file', file, file.name);
 
   const response = await fetch(`${apiBaseUrl}/v1/diagnosis-codes/import`, {
     method: 'POST',
