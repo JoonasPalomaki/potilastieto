@@ -29,6 +29,7 @@ interface LoginResponse {
   token_type?: string;
   expires_in?: number;
   expires_at?: string;
+  role?: string | null;
   user?: { username?: string; role?: string | null } | null;
 }
 
@@ -117,13 +118,15 @@ export const authService = {
       throw new Error('Login response missing access token.');
     }
 
+    const resolvedRole = payload.role ?? payload.user?.role ?? null;
+
     const session: AuthSession = {
       accessToken: payload.access_token,
       refreshToken: payload.refresh_token,
       tokenType: payload.token_type ?? 'Bearer',
       expiresAt: parseExpiry(payload),
       username: payload.user?.username ?? credentials.username,
-      role: payload.user?.role ?? undefined,
+      role: resolvedRole ?? undefined,
     };
 
     persistSession(session);
