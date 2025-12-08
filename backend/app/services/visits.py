@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import json
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, Iterable, List, Optional, Sequence
 
 from sqlmodel import Session, select
 
-from app.models import Appointment, ClinicalNote, Order, Patient, Visit
+from app.models import Appointment, ClinicalNote, DiagnosisCode, Order, Patient, Visit
 from app.schemas import (
     InitialVisitCreate,
     InitialVisitRead,
@@ -57,6 +57,14 @@ class VisitPatientNotFoundError(Exception):
     """Raised when the patient for a new visit does not exist."""
 
 
+class VisitDiagnosisValidationError(Exception):
+    """Raised when diagnoses payload is not valid against ICD code list."""
+
+    def __init__(self, message: str, *, invalid_codes: Optional[Sequence[str]] = None) -> None:
+        super().__init__(message)
+        self.invalid_codes: List[str] = list(invalid_codes or [])
+
+
 def _get_visit(session: Session, visit_id: int) -> Visit:
     visit = session.get(Visit, visit_id)
     if not visit:
@@ -80,6 +88,45 @@ def _visit_metadata(visit: Visit, *, panel: Optional[str] = None) -> Dict[str, o
     if panel:
         metadata["panel"] = panel
     return metadata
+
+
+def _normalize_diagnosis_code(value: str) -> str:
+    """Normalize ICD-like diagnosis code for comparison against stored codes.
+
+    Removes separators and whitespace and uppercases the code so that e.g.
+    \"r51.9\" and \"R51\" are treated consistently.
+    """
+    return value.replace(".", "").replace(" ", "").upper()
+
+
+def _validate_diagnosis_codes(
+    session: Session,
+    diagnoses: Sequence[VisitDiagnosisEntry],
+) -> None:
+    """Ensure all diagnosis codes exist in the dictionary and are active.
+
+    This enforces REQ-F-EMR-002: codes must be validated against the ICD-10 dictionary.
+    """
+    if not diagnoses:
+        return
+
+    invalid: List[str] = []
+    for entry in diagnoses:
+        normalized = _normalize_diagnosis_code(entry.code)
+        code = session.exec(
+            select(DiagnosisCode).where(
+                DiagnosisCode.normalized_code == normalized,
+                DiagnosisCode.is_deleted.is_(False),
+            )
+        ).first()
+        if not code:
+            invalid.append(entry.code)
+
+    if invalid:
+        raise VisitDiagnosisValidationError(
+            "Diagnoosikoodeja ei löytynyt koodistosta.",
+            invalid_codes=invalid,
+        )
 
 
 def _build_text_panel(note: Optional[ClinicalNote]) -> VisitNarrativePanelRead:
@@ -214,6 +261,9 @@ def _upsert_diagnoses(
     data: VisitDiagnosesPanelUpdate,
     actor_id: Optional[int],
 ) -> ClinicalNote:
+    # Validate that all codes are known and active in the ICD dictionary
+    _validate_diagnosis_codes(session, data.diagnoses)
+
     payload = [entry.model_dump() for entry in data.diagnoses]
     content = json.dumps(payload, ensure_ascii=False)
     return _upsert_note(

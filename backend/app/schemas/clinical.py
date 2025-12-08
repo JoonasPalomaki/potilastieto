@@ -206,6 +206,17 @@ class VisitDiagnosesPanelRead(BaseModel):
 class VisitDiagnosesPanelUpdate(BaseModel):
     diagnoses: List[VisitDiagnosisEntry] = Field(..., min_length=1)
 
+    @model_validator(mode="after")
+    def validate_primary_diagnosis(
+        cls, values: "VisitDiagnosesPanelUpdate"
+    ) -> "VisitDiagnosesPanelUpdate":
+        primary_count = sum(1 for item in values.diagnoses if item.is_primary)
+        if primary_count == 0:
+            raise ValueError("Vähintään yksi diagnoosi tulee merkitä pääkoodiksi (is_primary=true).")
+        if primary_count > 1:
+            raise ValueError("Vain yksi diagnoosi voidaan merkitä pääkoodiksi (is_primary=true).")
+        return values
+
 
 class VisitOrderItem(BaseModel):
     order_type: str = Field(..., min_length=1, max_length=100)

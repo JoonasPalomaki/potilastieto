@@ -44,6 +44,7 @@ from app.services.patients import (
 from app.services.visits import (
     VisitAppointmentNotFoundError,
     VisitConflictError,
+    VisitDiagnosisValidationError,
     VisitNotFoundError,
     VisitPatientNotFoundError,
     create_initial_visit,
@@ -98,6 +99,7 @@ __all__ = [
     "VisitConflictError",
     "VisitAppointmentNotFoundError",
     "VisitPatientNotFoundError",
+    "VisitDiagnosisValidationError",
     "create_initial_visit",
     "get_initial_visit",
     "update_visit_basics",

@@ -15,7 +15,7 @@ from sqlmodel import Session, select
 from app.core.config import settings
 from app.db.session import engine, init_db
 from app.main import app
-from app.models import Appointment, AuditEvent, Role, User
+from app.models import Appointment, AuditEvent, DiagnosisCode, Role, User
 from app.schemas import InitialVisitCreate, PatientCreate
 from app.services import create_patient, ensure_seed_data, security
 
@@ -75,6 +75,26 @@ def visit_api_context() -> Dict[str, object]:
         session.add(billing)
         session.commit()
         session.refresh(billing)
+
+        # Seed a minimal ICD-10 dictionary so that visit diagnoses validation passes
+        for code_value, description in [
+            ("R51", "Päänsärky"),
+            ("I10", "Hypertensio"),
+        ]:
+            existing_code = session.exec(
+                select(DiagnosisCode).where(DiagnosisCode.code == code_value)
+            ).first()
+            if not existing_code:
+                session.add(
+                    DiagnosisCode(
+                        code=code_value,
+                        normalized_code=code_value,
+                        short_description=description,
+                        long_description=None,
+                        is_deleted=False,
+                    )
+                )
+        session.commit()
 
         patient = create_patient(
             session,
@@ -291,6 +311,30 @@ def test_update_diagnoses_creates_audit_event(visit_api_context: Dict[str, objec
 
     assert events, "Expected audit event for diagnoses update"
     assert events[0].metadata_json.get("panel") == "diagnoses"
+
+
+def test_update_diagnoses_rejects_invalid_codes(visit_api_context: Dict[str, object]) -> None:
+    client: TestClient = visit_api_context["client"]
+    token = _login(client, visit_api_context["doctor_username"], visit_api_context["doctor_password"])
+    headers = {"Authorization": f"Bearer {token}"}
+
+    visit_id = _create_visit(client, headers, visit_api_context)
+
+    update_payload = {
+        "diagnoses": [
+            {"code": "ZZZ999", "description": "Tuntematon", "is_primary": True},
+        ]
+    }
+
+    response = client.put(
+        f"/api/v1/visits/{visit_id}/diagnoses",
+        headers=headers,
+        json=update_payload,
+    )
+
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    body = response.json()
+    assert body["detail"]["code"] == "INVALID_DIAGNOSIS_CODES"
 
 
 def test_admin_can_create_and_update_visit(visit_api_context: Dict[str, object]) -> None:

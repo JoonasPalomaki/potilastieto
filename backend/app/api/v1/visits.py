@@ -24,6 +24,7 @@ from app.schemas import (
 from app.services import (
     VisitAppointmentNotFoundError,
     VisitConflictError,
+    VisitDiagnosisValidationError,
     VisitNotFoundError,
     VisitPatientNotFoundError,
     create_initial_visit,
@@ -93,6 +94,15 @@ def create_visit(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Potilasta ei löydy") from exc
     except VisitConflictError as exc:
         raise _visit_conflict(exc) from exc
+    except VisitDiagnosisValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "message": str(exc),
+                "code": "INVALID_DIAGNOSIS_CODES",
+                "invalid_codes": exc.invalid_codes,
+            },
+        ) from exc
 
 
 @router.put("/{visit_id}/basics", response_model=VisitBasicsPanelRead)
@@ -182,7 +192,7 @@ def update_diagnoses(
     current: VisitAuthorizedUser,
     session: Session = Depends(get_db),
     context: dict = Depends(get_audit_context),
-) -> VisitDiagnosesPanelRead:
+    ) -> VisitDiagnosesPanelRead:
     try:
         return update_visit_diagnoses(
             session,
@@ -193,6 +203,15 @@ def update_diagnoses(
         )
     except VisitNotFoundError as exc:
         raise _visit_not_found() from exc
+    except VisitDiagnosisValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "message": str(exc),
+                "code": "INVALID_DIAGNOSIS_CODES",
+                "invalid_codes": exc.invalid_codes,
+            },
+        ) from exc
 
 
 @router.put("/{visit_id}/orders", response_model=VisitOrdersPanelRead)

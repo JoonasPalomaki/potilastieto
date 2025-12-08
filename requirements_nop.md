@@ -1,0 +1,98 @@
+# Testlab Requirements - Project NOP
+
+```yaml
+root: 
+  - F-ROOT: Potilastietojärjestelmä
+      - F-FUNC: Toiminnalliset ominaisuudet
+          - F-ADMIN: Ylläpito ja konfiguraatio
+              - REQ-F-ADM-001: Roolit ja oikeudet
+              - REQ-F-ADM-002: Sanastot ja koodistot
+              - REQ-F-ADM-003: Konfiguroitavat lomakepohjat
+              - REQ-F-ADM-004: Ylläpidä ICD-10 Diagnoosikoodeja
+          - F-APPT: Ajanvaraus ja vastaanoton hallinta
+              - REQ-F-APPT-001: Ajanvaraus kalenterista
+              - REQ-F-APPT-002: Saapumisen kuittaus ja jonotus
+              - REQ-F-APPT-003: Peruutukset ja uudelleenajoitus
+              - REQ-F-APPT-004: Palvelutyypin ohjaama lomake
+              - REQ-F-APPT-005: Resurssien käyttöasteen raportointi
+          - F-BILL: Laskutus ja raportointi
+              - REQ-F-BILL-001: Käyntimaksun muodostus
+              - REQ-F-BILL-002: Tuoterivit toimenpiteistä
+              - REQ-F-BILL-003: Alennukset ja vapautukset
+              - REQ-F-BILL-004: Raportit ja vienti
+          - F-EMR: Potilaskertomus ja merkinnät
+              - REQ-F-EMR-001: Rakenteinen potilaskertomus
+              - REQ-F-EMR-002: Diagnoosien kirjaaminen ICD-koodistolla
+              - REQ-F-EMR-003: Toimenpiteiden kirjaaminen
+              - REQ-F-EMR-004: Liitteet ja kuvat
+              - REQ-F-EMR-005: Versionhallinta ja korjaukset
+              - REQ-F-EMR-006: Hakutoiminnot potilaskertomuksessa
+          - F-LAB: Laboratoriot ja tulokset
+              - REQ-F-LAB-001: Näytteenoton kirjaus
+              - REQ-F-LAB-002: Tulosten syöttö
+              - REQ-F-LAB-003: Kriittiset arvot -hälytys
+              - REQ-F-LAB-004: Tulosten jakelu
+              - REQ-F-LAB-005: Tulosten korjaus
+          - F-NURSE: Hoitajien työkalut
+              - REQ-F-NUR-001: Hoitajan työlista
+              - REQ-F-NUR-002: Elintoimintojen kirjaus
+              - REQ-F-NUR-003: Rokotusten kirjaus
+              - REQ-F-NUR-004: Potilasinformaatio potilaalle
+          - F-ORD: Tutkimus- ja lääkitysmääräykset
+              - REQ-F-ORD-001: Lääkitysmääräys ja lääkelista
+              - REQ-F-ORD-002: Tutkimuspyynnöt
+              - REQ-F-ORD-003: Reseptin tulostus tai PDF
+              - REQ-F-ORD-004: Määräysten peruutus ja muutos
+              - REQ-F-ORD-005: Hoitomääräykset hoitajille
+          - F-REG: Potilaan rekisteröinti ja hallinta
+              - REQ-F-REG-001: Potilaan perustietojen rekisteröinti
+              - REQ-F-REG-002: Potilaan tietojen muokkaus ja historiat
+              - REQ-F-REG-003: Suostumusten hallinta
+              - REQ-F-REG-004: Yhteyshenkilöt ja alaikäisen huoltajat
+              - REQ-F-REG-005: Potilaan poistaminen ja arkistointi
+          - F-UX-DOCTOR: Lääkärin ensimmäinen käynti – käyttöliittymä
+              - REQ-F-UXD-001: Ensikäynnin näkymä – yleiskuva
+              - REQ-F-UXD-002: Syy tuloon -osio
+              - REQ-F-UXD-003: Anamneesi-osion pikaelementit
+              - REQ-F-UXD-004: Status-osion rakenteet
+              - REQ-F-UXD-005: Diagnoosin valinta näkymässä
+              - REQ-F-UXD-006: Määräykset ensikäynnillä
+              - REQ-F-UXD-007: Yhteenveto ja allekirjoitus
+              - REQ-F-UXD-008: Keskeytys ja jatkaminen myöhemmin
+              - REQ-F-UXD-009: Pikanäppäimet ja navigointi
+              - REQ-F-UXD-010: Minimitietojen tarkistus
+              - REQ-F-UXD-011: Tulostettava potilasyhteenveto
+              - REQ-F-UXD-012: Esteettömyys ensikäynnin näkymässä
+      - F-NFUNC: Ei‑toiminnalliset vaatimukset
+          - F-ARCH: Tekninen arkkitehtuuri ja asennus
+              - REQ-NF-ARCH-001: Teknologiapino – kevyt paikallisasennus
+              - REQ-NF-ARCH-002: Asennus Windows 11 -työasemalle
+              - REQ-NF-ARCH-003: Lokitus ja konfiguraatio
+              - REQ-NF-ARCH-004: Tietomalli ja skeemat
+          - F-LEGAL: Lainsäädäntö ja auditointi
+              - REQ-NF-LEGAL-001: Tietosuojaperiaatteet ja minimointi
+              - REQ-NF-LEGAL-002: Oikeus tulla unohdetuksi (arkistointi)
+          - F-MAINT: Ylläpidettävyys
+              - REQ-NF-MAINT-001: Konfiguroitavuus ilman koodimuutoksia
+              - REQ-NF-MAINT-002: Versiohallinta ja julkaisut
+          - F-PERF: Suorituskyky
+              - REQ-NF-PERF-001: Vasteaikatavoitteet
+              - REQ-NF-PERF-002: Skalaarinen suoritus paikallisesti
+              - REQ-NF-PERF-003: Kevyt resurssinkäyttö
+          - F-SEC: Tietoturva
+              - REQ-NF-SEC-001: Käyttäjätunnistus ja istunnot
+              - REQ-NF-SEC-002: Käyttöoikeusrajaukset tietotasolla
+              - REQ-NF-SEC-003: Lokitus ja auditointi
+              - REQ-NF-SEC-004: Tietojen salaus levossa ja liikenteessä
+          - F-USAB: Käytettävyys
+              - REQ-NF-USAB-001: Roolikohtainen minimistys UI:ssa
+              - REQ-NF-USAB-002: Saavutettavuus
+  - GAME: Matopeli
+      - GAME-1: Pelin aloitus
+      - GAME-2: Liikkuminen
+      - GAME-3: Pisteiden kerääminen
+      - GAME-4: Törmäyksen hallinta
+      - GAME-5: Pelin päättyminen
+  - NOP1: Energy
+      - NOP1.1: Folder
+```

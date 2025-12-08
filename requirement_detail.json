@@ -1,0 +1,6 @@
+[
+  {
+    "type": "text",
+    "text": "{\"requirementId\":\"REQ-F-UXD-001\",\"name\":\"Ensik\u00e4ynnin n\u00e4kym\u00e4 \u2013 yleiskuva\",\"description\":\"<h3>Ensik\u00e4ynnin n\u00e4kym\u00e4 \u2013 yleiskuva</h3><ul><li><p>L\u00e4\u00e4k\u00e4rin ensik\u00e4ynnin n\u00e4kym\u00e4 avautuu ajanvarauslistalta valittuun potilaaseen ja n\u00e4ytt\u00e4\u00e4 vain kyseiseen k\u00e4yntiin liittyv\u00e4t osiot.</p></li><li><p>N\u00e4kym\u00e4 koostuu paneeleista: potilaan perustiedot, syy tuloon, anamneesi, status, diagnoosit, m\u00e4\u00e4r\u00e4ykset ja yhteenveto.</p></li><li><p>Kaikki pakolliset kohdat on merkitty ja k\u00e4ytt\u00f6liittym\u00e4 est\u00e4\u00e4 kesken j\u00e4tt\u00e4misen ilmoittamatta syist\u00e4.</p></li><li><p>Alkamisaika on esit\u00e4ytetty aikaleimaan jolloin n\u00e4yt\u00f6lle tullaan</p></li><li><p>P\u00e4\u00e4ttymisaika on esit\u00e4ytetty tunti n\u00e4yt\u00f6lle saapumisesta eteenp\u00e4in</p></li></ul>\",\"milestone\":null,\"updated\":1765184856333,\"attachments\":null,\"assignee\":null}"
+  }
+]

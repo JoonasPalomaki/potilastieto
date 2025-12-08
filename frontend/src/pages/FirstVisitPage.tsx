@@ -2,6 +2,7 @@ import { ChangeEvent, FormEvent, MutableRefObject, useCallback, useEffect, useMe
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { useAuth } from '../contexts/AuthContext';
+import { config } from '../config';
 import {
   ApiError,
   AppointmentDetail,
@@ -116,7 +117,15 @@ const FirstVisitPage = ({ service = visitService }: { service?: VisitService }) 
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const [formState, setFormState] = useState<FormState>(initialFormState);
+  const [formState, setFormState] = useState<FormState>(() => {
+    const now = new Date();
+    const end = new Date(now.getTime() + 60 * 60 * 1000);
+    return {
+      ...initialFormState,
+      startedAt: formatDateTimeLocal(now.toISOString()),
+      endedAt: formatDateTimeLocal(end.toISOString()),
+    };
+  });
   const [patientForm, setPatientForm] = useState<PatientFormState>(initialPatientForm);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -129,6 +138,11 @@ const FirstVisitPage = ({ service = visitService }: { service?: VisitService }) 
   const [visit, setVisit] = useState<InitialVisit | null>(null);
   const [createdPatientId, setCreatedPatientId] = useState<number | null>(null);
   const fieldRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement | null>>({});
+  const [diagnosisSearchResults, setDiagnosisSearchResults] = useState<
+    { code: string; description?: string | null }[]
+  >([]);
+  const [diagnosisSearchError, setDiagnosisSearchError] = useState<string | null>(null);
+  const [isSearchingDiagnosis, setIsSearchingDiagnosis] = useState(false);
 
   const visitId = useMemo(() => {
     const value = searchParams.get('visitId');
@@ -220,7 +234,7 @@ const FirstVisitPage = ({ service = visitService }: { service?: VisitService }) 
       orderType: visitData.orders.orders[0]?.order_type ?? '',
       orderDetails:
         visitData.orders.orders[0]?.details &&
-        Object.keys(visitData.orders.orders[0]?.details).length > 0
+          Object.keys(visitData.orders.orders[0]?.details).length > 0
           ? JSON.stringify(visitData.orders.orders[0]?.details, null, 2)
           : '',
       summary: visitData.summary.content ?? '',
@@ -231,8 +245,6 @@ const FirstVisitPage = ({ service = visitService }: { service?: VisitService }) 
     setFormState((previous) => ({
       ...previous,
       location: appointmentData.location ?? previous.location,
-      startedAt: appointmentData.start_time ? formatDateTimeLocal(appointmentData.start_time) : previous.startedAt,
-      endedAt: appointmentData.end_time ? formatDateTimeLocal(appointmentData.end_time) : previous.endedAt,
       attendingProviderId: appointmentData.provider_id?.toString() ?? previous.attendingProviderId,
     }));
   }, []);
@@ -374,6 +386,69 @@ const FirstVisitPage = ({ service = visitService }: { service?: VisitService }) 
     };
   }, []);
 
+  const handleDiagnosisSearch = useCallback(async () => {
+    if (!authorization) {
+      setDiagnosisSearchError('Kirjautumistiedot puuttuvat diagnoosihakua varten.');
+      return;
+    }
+
+    const query = formState.diagnosisCode.trim() || formState.diagnosisDescription.trim();
+    if (!query) {
+      setDiagnosisSearchError('Anna hakuehto (koodi tai kuvaus) ennen hakua.');
+      return;
+    }
+
+    setDiagnosisSearchError(null);
+    setIsSearchingDiagnosis(true);
+
+    try {
+      const baseUrl = config.apiBaseUrl.replace(/\/$/, '');
+      const params = new URLSearchParams({
+        search: query,
+        page_size: '10',
+      });
+      const response = await fetch(`${baseUrl}/v1/diagnosis-codes?${params.toString()}`, {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+          Authorization: authorization,
+        },
+      });
+
+      if (!response.ok) {
+        setDiagnosisSearchResults([]);
+        setDiagnosisSearchError('Diagnoosikoodien haku epäonnistui.');
+        return;
+      }
+
+      const payload = (await response.json()) as {
+        items?: { code?: string; short_description?: string | null; long_description?: string | null }[];
+      };
+      const items = Array.isArray(payload.items) ? payload.items : [];
+      const results = items
+        .map((item) => {
+          if (!item || typeof item.code !== 'string') {
+            return null;
+          }
+          return {
+            code: item.code,
+            description: item.short_description ?? item.long_description ?? null,
+          };
+        })
+        .filter((entry): entry is { code: string; description?: string | null } => Boolean(entry));
+
+      setDiagnosisSearchResults(results);
+      if (results.length === 0) {
+        setDiagnosisSearchError('Hakuehdolla ei löytynyt diagnoosikoodeja.');
+      }
+    } catch (error) {
+      setDiagnosisSearchResults([]);
+      setDiagnosisSearchError('Diagnoosikoodien haku epäonnistui.');
+    } finally {
+      setIsSearchingDiagnosis(false);
+    }
+  }, [authorization, formState.diagnosisCode, formState.diagnosisDescription]);
+
   const handlePatientChange = useCallback((key: keyof PatientFormState) => {
     return (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
       const value = event.target.value;
@@ -491,9 +566,9 @@ const FirstVisitPage = ({ service = visitService }: { service?: VisitService }) 
           contact_info:
             patientForm.phone || patientForm.email
               ? {
-                  phone: patientForm.phone || undefined,
-                  email: patientForm.email || undefined,
-                }
+                phone: patientForm.phone || undefined,
+                email: patientForm.email || undefined,
+              }
               : undefined,
         };
         activePatient = await service.createPatient(payload, { authorization });
@@ -963,6 +1038,50 @@ const FirstVisitPage = ({ service = visitService }: { service?: VisitService }) 
                   className="mt-1 w-full rounded-md border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-500"
                 />
               </div>
+            </div>
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={handleDiagnosisSearch}
+                className="rounded-md border border-slate-700 bg-slate-950 px-3 py-1.5 text-xs font-medium text-slate-100 shadow-sm transition hover:border-sky-400 hover:text-white focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={isSearchingDiagnosis}
+                aria-busy={isSearchingDiagnosis ? 'true' : 'false'}
+              >
+                {isSearchingDiagnosis ? 'Haetaan koodeja…' : 'Hae ICD-10-diagnoosikoodi'}
+              </button>
+              {diagnosisSearchError && (
+                <p className="text-xs text-rose-300" role="alert">
+                  {diagnosisSearchError}
+                </p>
+              )}
+              {diagnosisSearchResults.length > 0 && (
+                <div className="mt-2 rounded-md border border-slate-800 bg-slate-950/80 p-3">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    Hakutulokset
+                  </p>
+                  <ul className="space-y-1 text-xs text-slate-100">
+                    {diagnosisSearchResults.map((item) => (
+                      <li key={item.code}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormState((previous) => ({
+                              ...previous,
+                              diagnosisCode: item.code,
+                              diagnosisDescription: item.description ?? previous.diagnosisDescription,
+                            }));
+                            setDiagnosisSearchResults([]);
+                          }}
+                          className="flex w-full items-start justify-between gap-2 rounded-md px-2 py-1 text-left hover:bg-slate-800 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                        >
+                          <span className="font-mono text-sky-300">{item.code}</span>
+                          <span className="flex-1 text-slate-100">{item.description ?? 'Ei kuvausta'}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           </fieldset>
 
